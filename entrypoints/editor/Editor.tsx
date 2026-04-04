@@ -983,19 +983,37 @@ function Editor() {
         e.target.value = '';
     };
 
-    const undo = () => {
+    const undo = useCallback(() => {
         if (historyIndex > 0) {
             setHistoryIndex(historyIndex - 1);
             setElements([...history[historyIndex - 1]]);
         }
-    };
+    }, [historyIndex, history]);
 
-    const redo = () => {
+    const redo = useCallback(() => {
         if (historyIndex < history.length - 1) {
             setHistoryIndex(historyIndex + 1);
             setElements([...history[historyIndex + 1]]);
         }
-    };
+    }, [historyIndex, history]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const tag = (e.target as HTMLElement).tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+            const mod = e.ctrlKey || e.metaKey;
+            if (mod && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            } else if (mod && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                redo();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [undo, redo]);
 
     const handleDownload = (format: 'png' | 'jpeg') => {
         const stage = stageRef.current;
