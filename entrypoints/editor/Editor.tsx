@@ -157,7 +157,7 @@ function Editor() {
 
     const [tool, setTool] = useState<Tool>('crop');
     const [color, setColor] = useState('#ff0000');
-    const [strokeWidth, setStrokeWidth] = useState(18);
+    const [strokeWidth, setStrokeWidth] = useState(6);
     const [filled, setFilled] = useState(false);
 
     const [opacity, setOpacity] = useState(1);
@@ -168,7 +168,7 @@ function Editor() {
     const [fontFamily, setFontFamily] = useState('Inter');
     const [fontSize, setFontSize] = useState(80);
     const [bgColor, setBgColor] = useState('#ffffff');
-    const [strokeColor, setStrokeColor] = useState('#000000');
+    const [strokeColor, setStrokeColor] = useState('#ff0000');
     const [shadowBlur, setShadowBlur] = useState(0);
     const [shadowOffset, setShadowOffset] = useState(0);
     const [shadowColor, setShadowColor] = useState('#000000');
@@ -218,13 +218,13 @@ function Editor() {
 
     const toolSettingsRef = useRef<Record<Tool, Partial<DrawingElement>>>({
         crop: {},
-        pencil: { color: '#000000', strokeWidth: 18, opacity: 1 },
-        line: { color: '#000000', strokeWidth: 18, opacity: 1, dash: [10, 5] },
-        arrow: { color: '#000000', strokeWidth: 18, opacity: 1, pointerAtStart: false },
-        rectangle: { color: '#000000', strokeWidth: 18, opacity: 1, filled: false },
-        circle: { color: '#000000', strokeWidth: 18, opacity: 1, filled: false },
+        pencil: { color: '#ff0000', strokeWidth: 6, opacity: 1 },
+        line: { color: '#ff0000', strokeWidth: 6, opacity: 1, dash: [10, 5] },
+        arrow: { color: '#ff0000', strokeWidth: 6, opacity: 1, pointerAtStart: false },
+        rectangle: { color: '#ff0000', strokeWidth: 6, opacity: 1, filled: false },
+        circle: { color: '#ff0000', strokeWidth: 6, opacity: 1, filled: false },
         text: {
-            color: '#000000', fontSize: 80, fontFamily: 'Inter', align: 'left',
+            color: '#ff0000', fontSize: 80, fontFamily: 'Inter', align: 'left',
             strokeWidth: 0, strokeColor: '#000000', bgColor: '#ffffff',
             shadowBlur: 0, shadowOffset: 0, shadowColor: '#000000',
             letterSpacing: 0, lineHeight: 1.2, textCase: 'none'
@@ -640,6 +640,7 @@ function Editor() {
         }
 
         if (['pencil', 'line', 'arrow', 'rectangle', 'circle', 'blur'].includes(tool)) {
+            if (clickedOnEmpty) setSelectedId(null);
             setIsDrawing(true);
             const newElement: DrawingElement = {
                 id: `element-${Date.now()}`,
