@@ -1,145 +1,181 @@
-/* Popup Styles - Light Minimalistic Overhaul */
 @import '../../assets/fonts/inter.css';
 
 :root {
-  --brand-primary: #a173fe;
-  --brand-primary-hover: #8e5ceb;
-  --bg-main: #ffffff;
-  --bg-surface: #f9fafb;
-  --text-main: #111827;
-  --text-dim: #6b7280;
-  --border-main: #e5e7eb;
-  --radius-md: 12px;
-  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.05);
+    --bg-dark: #0f0f14;
+    --card-bg: rgba(255, 255, 255, 0.06);
+    --card-border: rgba(255, 255, 255, 0.08);
+    --card-hover-bg: rgba(255, 255, 255, 0.10);
+    --card-hover-border: rgba(161, 115, 254, 0.4);
+    --accent: #a173fe;
+    --accent-glow: rgba(161, 115, 254, 0.15);
+    --text-primary: #f0f0f5;
+    --text-secondary: #8a8a9a;
+    --radius: 14px;
 }
 
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
 body {
-  font-family: 'Inter', system-ui, sans-serif;
-  background: var(--bg-main);
-  color: var(--text-main);
-  min-width: 300px;
-  overflow: hidden;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    min-width: 320px;
+    overflow: hidden;
 }
 
 .popup-container {
-  padding: 20px;
+    padding: 20px;
+    background: var(--bg-dark);
+    position: relative;
+}
+
+.popup-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
 }
 
 .popup-header {
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+    position: relative;
+    z-index: 1;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-.brand-logo {
-  height: 32px;
-  width: auto;
-  object-fit: contain;
+.brand-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.3px;
+}
+
+.brand-accent {
+    color: var(--accent);
+}
+
+.shortcut-hint {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .capture-modes {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.capture-btn {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 14px 16px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-main);
-  border-radius: var(--radius-md);
-  color: var(--text-main);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: left;
-  width: 100%;
+.capture-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left;
+    width: 100%;
+    outline: none;
 }
 
-.capture-btn:hover:not(:disabled) {
-  border-color: var(--brand-primary);
-  background: #ffffff;
-  box-shadow: var(--shadow-sm);
-  transform: translateY(-1px);
+.capture-card:hover:not(:disabled) {
+    background: var(--card-hover-bg);
+    border-color: var(--card-hover-border);
+    box-shadow: 0 0 20px var(--accent-glow), 0 4px 16px rgba(0, 0, 0, 0.3);
+    transform: scale(1.02);
 }
 
-.capture-btn:active:not(:disabled) {
-  transform: translateY(0);
+.capture-card:active:not(:disabled) {
+    transform: scale(0.98);
 }
 
-.capture-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.capture-card:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
-.capture-btn .icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: rgba(161, 115, 254, 0.08);
-  border-radius: 10px;
-  color: var(--brand-primary);
-  transition: all 0.2s ease;
+.capture-card .icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: rgba(161, 115, 254, 0.1);
+    border-radius: 10px;
+    color: var(--accent);
+    flex-shrink: 0;
+    transition: all 0.25s ease;
 }
 
-.capture-btn:hover .icon {
-  background: var(--brand-primary);
-  color: #ffffff;
+.capture-card:hover:not(:disabled) .icon-wrap {
+    background: var(--accent);
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(161, 115, 254, 0.4);
 }
 
-.capture-btn .content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.capture-card .card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
-.capture-btn .label {
-  font-size: 14px;
-  font-weight: 600;
+.capture-card .card-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
-.capture-btn .desc {
-  font-size: 12px;
-  color: var(--text-dim);
+.capture-card .card-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
 }
 
-.status {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 16px;
-  padding: 10px;
-  background: rgba(161, 115, 254, 0.05);
-  border: 1px solid rgba(161, 115, 254, 0.1);
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--brand-primary);
+.status-bar {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 10px;
+    background: rgba(161, 115, 254, 0.08);
+    border: 1px solid rgba(161, 115, 254, 0.15);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
 }
 
-.spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(161, 115, 254, 0.2);
-  border-top-color: var(--brand-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+.pulse-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
 }
