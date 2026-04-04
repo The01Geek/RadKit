@@ -60,24 +60,11 @@ interface Toast {
 
 const AVAILABLE_FONTS = [
     { name: 'Inter', category: 'sans-serif' },
-    { name: 'Roboto', category: 'sans-serif' },
-    { name: 'Open Sans', category: 'sans-serif' },
-    { name: 'Lato', category: 'sans-serif' },
-    { name: 'Montserrat', category: 'sans-serif' },
-    { name: 'Poppins', category: 'sans-serif' },
-    { name: 'Playfair Display', category: 'serif' },
-    { name: 'Merriweather', category: 'serif' },
-    { name: 'Lora', category: 'serif' },
-    { name: 'Fira Code', category: 'monospace' },
-    { name: 'Source Code Pro', category: 'monospace' },
-    { name: 'JetBrains Mono', category: 'monospace' },
-    { name: 'Bangers', category: 'display' },
-    { name: 'Bebas Neue', category: 'display' },
-    { name: 'Anton', category: 'display' },
-    { name: 'Luckiest Guy', category: 'display' },
-    { name: 'Permanent Marker', category: 'handwriting' },
-    { name: 'Pacifico', category: 'handwriting' },
-    { name: 'Lobster', category: 'handwriting' },
+    { name: 'Arial', category: 'sans-serif' },
+    { name: 'Georgia', category: 'serif' },
+    { name: 'Times New Roman', category: 'serif' },
+    { name: 'Courier New', category: 'monospace' },
+    { name: 'Verdana', category: 'sans-serif' },
 ];
 
 const PixelatedBlur: React.FC<{
@@ -414,17 +401,8 @@ function Editor() {
                 });
             };
 
-            if (!document.getElementById(linkId)) {
-                const link = document.createElement('link');
-                link.id = linkId;
-                link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}:wght@400;700&display=swap`;
-                link.rel = 'stylesheet';
-                link.onload = processLoad;
-                link.onerror = () => activeFontLoads.current.delete(fontName);
-                document.head.appendChild(link);
-            } else {
-                processLoad();
-            }
+            // Fonts are bundled locally — just trigger the load check
+            processLoad();
 
             // Safety timeout
             setTimeout(() => {
