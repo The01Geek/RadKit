@@ -45,7 +45,7 @@ RadKit is forked from [raakkan/screenshot-editor](https://github.com/raakkan/scr
 2. **Privacy hardening** — removed all Google Fonts imports, bundled Inter font locally, zero external requests
 3. **Popup redesign** — dark glassmorphism card UI replacing the original design
 4. **Keyboard shortcut** — `Alt+S` for instant visible-viewport capture
-5. **Automation** — devflow-autopilot GitHub Actions workflows for project management
+5. **Automation** — GitHub Actions workflows for Claude-powered PR assistance and code review
 
 ## Configuration
 
