@@ -1,6 +1,6 @@
 // Background script for handling screenshot capture
 export default defineBackground(() => {
-  console.log('Screenshot Editor Pro background script loaded');
+  console.log('RadKit background script loaded');
 
   // Broadcast a cleanup message to all tabs to ensure selector is gone
   // Broadcast a cleanup message to ensure selector is gone

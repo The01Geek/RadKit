@@ -4,9 +4,9 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
-    name: 'Screenshot Editor Pro',
-    description: 'Capture & edit screenshots with visible page, select area, and full page modes',
-    version: '1.2.2',
+    name: 'RadKit',
+    description: 'Capture & edit screenshots with privacy-first design',
+    version: '1.0.0',
     icons: {
       16: 'icon/16.png',
       32: 'icon/32.png',

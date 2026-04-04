@@ -1,8 +1,8 @@
 {
-  "name": "screenshot-editor",
-  "description": "Capture & edit screenshots with visible page, select area, and full page modes",
+  "name": "radkit",
+  "description": "Capture & edit screenshots with privacy-first design",
   "private": true,
-  "version": "1.2.2",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
