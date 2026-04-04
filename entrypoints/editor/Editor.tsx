@@ -46,6 +46,12 @@ interface DrawingElement {
     imageSrc?: string;
 }
 
+interface HistoryEntry {
+    elements: DrawingElement[];
+    image: HTMLImageElement;
+    stageSize: { width: number; height: number };
+}
+
 interface Preset {
     id: string;
     name: string;
@@ -180,8 +186,8 @@ function Editor() {
     const [isDrawing, setIsDrawing] = useState(false);
     const [currentElement, setCurrentElement] = useState<DrawingElement | null>(null);
 
-    const [history, setHistory] = useState<DrawingElement[][]>([[]]);
-    const [historyIndex, setHistoryIndex] = useState(0);
+    const [history, setHistory] = useState<HistoryEntry[]>([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
 
     const [textInput, setTextInput] = useState<{ x: number; y: number; visible: boolean; editingId: string | null }>({
         x: 0, y: 0, visible: false, editingId: null
@@ -333,7 +339,10 @@ function Editor() {
                         console.log(`Editor: Image rendered successfully (${img.width}x${img.height})`);
                         setImage(img);
 
-                        setStageSize({ width: img.width, height: img.height });
+                        const size = { width: img.width, height: img.height };
+                        setStageSize(size);
+                        setHistory([{ elements: [], image: img, stageSize: size }]);
+                        setHistoryIndex(0);
                         setTimeout(() => {
                             if (canvasContainerRef.current) {
                                 const containerWidth = canvasContainerRef.current.clientWidth - 40;
@@ -590,11 +599,12 @@ function Editor() {
     };
 
     const addToHistory = useCallback((newElements: DrawingElement[]) => {
+        if (!image) return;
         const newHistory = history.slice(0, historyIndex + 1);
-        newHistory.push([...newElements]);
+        newHistory.push({ elements: [...newElements], image, stageSize });
         setHistory(newHistory);
         setHistoryIndex(newHistory.length - 1);
-    }, [history, historyIndex]);
+    }, [history, historyIndex, image, stageSize]);
 
     const getPointerPosition = () => {
         const stage = stageRef.current;
@@ -985,15 +995,21 @@ function Editor() {
 
     const undo = useCallback(() => {
         if (historyIndex > 0) {
+            const entry = history[historyIndex - 1];
             setHistoryIndex(historyIndex - 1);
-            setElements([...history[historyIndex - 1]]);
+            setElements([...entry.elements]);
+            setImage(entry.image);
+            setStageSize(entry.stageSize);
         }
     }, [historyIndex, history]);
 
     const redo = useCallback(() => {
         if (historyIndex < history.length - 1) {
+            const entry = history[historyIndex + 1];
             setHistoryIndex(historyIndex + 1);
-            setElements([...history[historyIndex + 1]]);
+            setElements([...entry.elements]);
+            setImage(entry.image);
+            setStageSize(entry.stageSize);
         }
     }, [historyIndex, history]);
 
@@ -1053,10 +1069,16 @@ function Editor() {
 
         const newImg = new Image();
         newImg.onload = () => {
+            const newSize = { width, height };
             setImage(newImg);
-            setStageSize({ width, height });
+            setStageSize(newSize);
             setCropRect(null);
-            setElements([]); setHistory([[]]); setHistoryIndex(0);
+            setElements([]);
+
+            const newHistory = history.slice(0, historyIndex + 1);
+            newHistory.push({ elements: [], image: newImg, stageSize: newSize });
+            setHistory(newHistory);
+            setHistoryIndex(newHistory.length - 1);
         };
         newImg.src = canvas.toDataURL();
     };
