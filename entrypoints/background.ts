@@ -114,53 +114,31 @@ export default defineBackground(() => {
   }
 
   async function captureDesktopMedia(): Promise<string> {
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-
-    // Prompt user to pick a screen, window, or tab
-    const streamId = await new Promise<string>((resolve, reject) => {
-      chrome.desktopCapture.chooseDesktopMedia(
-        ['screen', 'window', 'tab'],
-        tab!,
-        (id) => {
-          if (!id) {
-            reject(new Error('Selection canceled'));
-          } else {
-            resolve(id);
-          }
+    return new Promise<string>((resolve, reject) => {
+      // Open a small extension window — it has user activation so getDisplayMedia works
+      chrome.windows.create(
+        {
+          url: chrome.runtime.getURL('/capture.html'),
+          type: 'popup',
+          width: 1024,
+          height: 768,
+          focused: true,
+        },
+        (win) => {
+          const listener = (message: any) => {
+            if (message.type !== 'desktop-capture-result') return;
+            browser.runtime.onMessage.removeListener(listener);
+            if (win?.id) chrome.windows.remove(win.id);
+            if (message.success) {
+              resolve(message.dataUrl);
+            } else {
+              reject(new Error(message.error || 'Capture failed'));
+            }
+          };
+          browser.runtime.onMessage.addListener(listener);
         }
       );
     });
-
-    // Create offscreen document for getUserMedia (service workers have no DOM)
-    try {
-      await chrome.offscreen.createDocument({
-        url: 'offscreen.html',
-        reasons: [chrome.offscreen.Reason.USER_MEDIA],
-        justification: 'Capture a frame from the desktop media stream',
-      });
-    } catch {
-      // Document may already exist from a previous capture
-    }
-
-    try {
-      const response: any = await chrome.runtime.sendMessage({
-        type: 'capture-desktop-frame',
-        streamId,
-      });
-
-      if (!response?.success) {
-        throw new Error(response?.error || 'Frame capture failed');
-      }
-
-      return response.dataUrl;
-    } finally {
-      // Clean up the offscreen document
-      try {
-        await chrome.offscreen.closeDocument();
-      } catch {
-        // Already closed or never created
-      }
-    }
   }
 
   async function captureWithSelection(): Promise<string> {
