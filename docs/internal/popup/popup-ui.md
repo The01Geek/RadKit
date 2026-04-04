@@ -46,4 +46,4 @@ Defined in `entrypoints/popup/App.css`:
 
 ## Icons
 
-The popup imports icon components from `entrypoints/editor/Icons.tsx` (`IconMonitor`, `IconSelection`, `IconFile`). These are shared with the editor to maintain visual consistency.
+The popup imports icon components from `entrypoints/editor/Icons.tsx` (`IconMonitor`, `IconSelection`, `IconFile`, `IconTimer`). These are shared with the editor to maintain visual consistency.
