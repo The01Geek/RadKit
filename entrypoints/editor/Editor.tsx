@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState, useCallback, useLayoutEffect } from
 import { Stage, Layer, Image as KonvaImage, Line, Arrow, Rect, Ellipse, Text, Transformer } from 'react-konva';
 import Konva from 'konva';
 import './editor.css';
-import logo from '../../assets/logo.png';
 import {
     IconUndo, IconRedo, IconCopy, IconSave, IconDownload,
     IconCrop, IconPencil, IconLine, IconArrow, IconSquare,
@@ -157,7 +156,7 @@ function Editor() {
     const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
 
     const [tool, setTool] = useState<Tool>('crop');
-    const [color, setColor] = useState('#a173fe');
+    const [color, setColor] = useState('#ff0000');
     const [strokeWidth, setStrokeWidth] = useState(18);
     const [filled, setFilled] = useState(false);
 
@@ -211,6 +210,7 @@ function Editor() {
     const [activePresetId, setActivePresetId] = useState<string | null>(null);
     const [isSavingPreset, setIsSavingPreset] = useState(false);
     const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     const [presetNameInput, setPresetNameInput] = useState('');
     const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -1013,6 +1013,14 @@ function Editor() {
         }
     }, [historyIndex, history]);
 
+    const toolShortcuts: Record<string, Tool> = {
+        c: 'crop', p: 'pencil', l: 'line', a: 'arrow',
+        r: 'rectangle', o: 'circle', t: 'text', b: 'blur', i: 'image',
+    };
+
+    const shortcutForTool = (id: Tool): string | undefined =>
+        Object.entries(toolShortcuts).find(([, v]) => v === id)?.[0]?.toUpperCase();
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const tag = (e.target as HTMLElement).tagName;
@@ -1025,6 +1033,18 @@ function Editor() {
             } else if (mod && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
                 e.preventDefault();
                 redo();
+            }
+
+            if (mod || e.altKey) return;
+            const matched = toolShortcuts[e.key.toLowerCase()];
+            if (matched) {
+                e.preventDefault();
+                if (matched === 'image') {
+                    triggerImageUpload();
+                } else {
+                    setTool(matched);
+                    loadToolSettings(matched);
+                }
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -1149,7 +1169,35 @@ function Editor() {
         <div className="editor-container">
             <header className="editor-header">
                 <div className="header-left">
-                    <img src={logo} alt="Screenshot Editor Pro" className="brand-logo" />
+                    <span className="brand-logo-text">Rad<span className="brand-accent">Kit</span></span>
+                </div>
+                <div className="header-tools">
+                    {tools.map(t => (
+                        <button key={t.id} className={`tool-btn ${tool === t.id ? 'active' : ''}`} onClick={() => {
+                            if (t.id === 'image') {
+                                triggerImageUpload();
+                            } else {
+                                setTool(t.id);
+                                loadToolSettings(t.id);
+                            }
+                        }} title={`${t.label}${shortcutForTool(t.id) ? ` (${shortcutForTool(t.id)})` : ''}`}>
+                            <span className="icon">{t.icon}</span>
+                            <span className="btn-label">{t.label}{shortcutForTool(t.id) ? ` (${shortcutForTool(t.id)})` : ''}</span>
+                        </button>
+                    ))}
+                    <div className="h-divider"></div>
+                    {tool !== 'blur' && tool !== 'crop' && (
+                        <div className="color-tool">
+                            <input type="color" value={color} onChange={(e) => { setColor(e.target.value); setActivePresetId(null); }} className="color-input" />
+                            <div className="color-preview" style={{ backgroundColor: color }}></div>
+                        </div>
+                    )}
+                    {['rectangle', 'circle'].includes(tool) && (
+                        <button className={`side-tool-btn ${filled ? 'active' : ''}`} onClick={() => { setFilled(!filled); setActivePresetId(null); }} title="Fill Shape">
+                            <IconCheck />
+                        </button>
+                    )}
+                    <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleImageFileChange} />
                 </div>
                 <div className="header-actions">
                     <div className="templates-menu-wrapper" ref={templatesRef}>
@@ -1217,41 +1265,12 @@ function Editor() {
                     </div>
                     <div className="header-divider"></div>
                     <button onClick={handleCopy} title="Copy Content"><IconCopy /></button>
+                    <button onClick={() => setSidebarOpen(!sidebarOpen)} title="Layers & Properties" className={sidebarOpen ? 'active' : ''}><IconLayers /></button>
                     <button className="btn-primary" onClick={() => handleDownload('png')}>Download</button>
                 </div>
             </header>
 
             <main className="editor-main">
-                <aside className="editor-left-toolbar">
-                    <div className="center-toolbar">
-                        {tools.map(t => (
-                            <button key={t.id} className={`tool-btn ${tool === t.id ? 'active' : ''}`} onClick={() => {
-                                if (t.id === 'image') {
-                                    triggerImageUpload();
-                                } else {
-                                    setTool(t.id);
-                                    loadToolSettings(t.id);
-                                }
-                            }} title={t.label}>
-                                <span className="icon">{t.icon}</span>
-                                <span className="btn-label">{t.label}</span>
-                            </button>
-                        ))}
-                        <div className="v-divider"></div>
-                        {tool !== 'blur' && tool !== 'crop' && (
-                            <div className="color-tool">
-                                <input type="color" value={color} onChange={(e) => { setColor(e.target.value); setActivePresetId(null); }} className="color-input" />
-                                <div className="color-preview" style={{ backgroundColor: color }}></div>
-                            </div>
-                        )}
-                        {['rectangle', 'circle'].includes(tool) && (
-                            <button className={`side-tool-btn ${filled ? 'active' : ''}`} onClick={() => { setFilled(!filled); setActivePresetId(null); }} title="Fill Shape">
-                                <IconCheck />
-                            </button>
-                        )}
-                    </div>
-                    <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleImageFileChange} />
-                </aside>
                 <div className="canvas-area">
                     <div className="canvas-viewport" ref={canvasContainerRef}>
                         <div className="canvas-stage-wrapper" style={{ minWidth: stageSize.width * zoom }}>
@@ -1374,7 +1393,7 @@ function Editor() {
                     </div>
                 </div>
 
-                <aside className="editor-sidebar">
+                {sidebarOpen && <aside className="editor-sidebar">
                     <div className="sidebar-section layers">
                         <div className="section-header"><IconLayers /><span>Layers</span><span className="badge">{elements.length}</span></div>
                         <div className="section-content scrollable">
@@ -1579,7 +1598,7 @@ function Editor() {
                             })() : <div className="empty-state"><p>Select an element</p></div>}
                         </div>
                     </div>
-                </aside>
+                </aside>}
             </main>
 
             <div className="toast-container">
