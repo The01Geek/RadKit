@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import './App.css';
-import { IconMonitor, IconSelection, IconFile } from '../editor/Icons';
+import { IconMonitor, IconSelection, IconFile, IconTimer } from '../editor/Icons';
 
-type CaptureMode = 'visible' | 'selection' | 'fullpage';
+type CaptureMode = 'visible' | 'selection' | 'fullpage' | 'visible-delayed';
 
 function App() {
     const [isCapturing, setIsCapturing] = useState(false);
@@ -72,6 +72,18 @@ function App() {
                     <div className="card-content">
                         <span className="card-label">Full Page</span>
                         <span className="card-desc">Capture top to bottom</span>
+                    </div>
+                </button>
+
+                <button
+                    className="capture-card"
+                    onClick={() => handleCapture('visible-delayed')}
+                    disabled={isCapturing}
+                >
+                    <span className="icon-wrap"><IconTimer /></span>
+                    <div className="card-content">
+                        <span className="card-label">Visible After Delay</span>
+                        <span className="card-desc">3-second countdown</span>
                     </div>
                 </button>
             </div>

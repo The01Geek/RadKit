@@ -1,6 +1,6 @@
 # Capture Modes
 
-RadKit supports three capture modes, all implemented in `entrypoints/background.ts`.
+RadKit supports four capture modes, all implemented in `entrypoints/background.ts`.
 
 ## Visible Viewport (`captureVisibleTab`)
 
@@ -29,6 +29,26 @@ Lets the user draw a rectangle on the page, then crops the captured image to tha
 The `cropImage()` function runs inside the page (via `chrome.scripting.executeScript`) to access the DOM's `Image` and `Canvas` APIs. It accounts for `devicePixelRatio` to produce pixel-perfect crops on high-DPI displays.
 
 **Important**: The crop uses the tab's DPR, not a fixed value. On a 2x display, a 100×100 CSS-pixel selection produces a 200×200 pixel image.
+
+## Visible After Delay (`visible-delayed`)
+
+A timed variant of the Visible Viewport mode. Waits 3 seconds before capturing, allowing the user to open transient UI elements (drop-down menus, tooltips, hover states) that would otherwise close when interacting with the extension popup.
+
+### Flow
+
+1. User clicks the "Visible After Delay" card in the popup
+2. Popup sends `{ type: 'capture', mode: 'visible-delayed' }` to the background service worker
+3. Popup closes after ~500ms (standard behavior)
+4. Background service worker waits 3 seconds (`setTimeout`, 3000ms)
+5. `captureVisibleTab()` fires and captures the current visible viewport
+6. Editor opens with the captured image — identical to the Visible Viewport flow
+
+### Notes
+
+- The 3-second delay runs entirely in the background service worker, independent of the popup lifecycle
+- No new permissions required — reuses `captureVisibleTab()`
+- The service worker's keep-alive window (typically 30s after the last event) is well within the 3-second delay
+- If the user switches tabs during the delay, the wrong tab will be captured (acceptable trade-off for v1)
 
 ## Full Page (`captureFullPage`)
 
