@@ -28,9 +28,9 @@ RadKit is a browser extension built with the [WXT](https://wxt.dev/) framework, 
 
 ## Data Flow
 
-1. **User initiates capture** — via the popup (click) or keyboard shortcut (`Alt+S`).
-2. **Popup sends message** — `{ type: 'capture', mode: 'visible' | 'selection' | 'fullpage' }` to the background script via `browser.runtime.sendMessage`.
-3. **Background script captures** — uses `chrome.tabs.captureVisibleTab` (visible/full-page) or injects the content script for area selection.
+1. **User initiates capture** — via the popup (click) or keyboard shortcut (`Alt+S` for visible, `Alt+D` for desktop).
+2. **Popup sends message** — `{ type: 'capture', mode: 'visible' | 'selection' | 'fullpage' | 'desktop' }` to the background script via `browser.runtime.sendMessage`.
+3. **Background script captures** — uses `chrome.tabs.captureVisibleTab` (visible/full-page), injects the content script for area selection, or uses `chrome.desktopCapture` with an offscreen document for screen/window capture.
 4. **Image stored** — the captured data URL is saved to `browser.storage.local` under the `capturedImage` key.
 5. **Editor opens** — a new tab is created at `/editor.html`, which reads the image from storage and renders it on a Konva stage.
 
@@ -51,6 +51,8 @@ Declared in `wxt.config.ts` → `manifest.permissions`:
 - `storage` — persist captured images and style presets
 - `scripting` — inject content scripts dynamically for selection and full-page capture
 - `unlimitedStorage` — support large full-page screenshots (data URLs can be 10+ MB)
+- `desktopCapture` — access screen, window, and tab capture via `chrome.desktopCapture`
+- `offscreen` — create offscreen documents for DOM-dependent APIs (e.g., `getUserMedia`) in the service worker context
 
 ## Privacy Model
 
@@ -79,5 +81,6 @@ assets/
 ├── icon.png
 └── logo.png
 public/
+├── offscreen.html       # Offscreen document for desktop media capture
 └── icon/                # Extension icons (16–128px)
 ```
