@@ -43,6 +43,17 @@ export default defineBackground(() => {
     return false;
   });
 
+  // Listen for keyboard shortcut
+  chrome.commands.onCommand.addListener(async (command) => {
+    if (command === 'capture-visible') {
+      try {
+        await handleCapture('visible');
+      } catch (error) {
+        console.error('Keyboard shortcut capture failed:', error);
+      }
+    }
+  });
+
   async function handleCapture(mode: string): Promise<{ success: boolean; error?: string }> {
     try {
       let imageDataUrl: string;

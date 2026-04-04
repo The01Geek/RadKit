@@ -15,5 +15,13 @@ export default defineConfig({
       128: 'icon/128.png',
     },
     permissions: ['activeTab', 'storage', 'scripting', 'unlimitedStorage'],
+    commands: {
+      'capture-visible': {
+        suggested_key: {
+          default: 'Alt+S',
+        },
+        description: 'Capture visible viewport',
+      },
+    },
   },
 });
