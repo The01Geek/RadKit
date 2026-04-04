@@ -6,7 +6,7 @@
 # See README.md for documentation on each field.
 
 # GitHub Project board number (from your project URL)
-project_number: "1"
+project_number: "2"
 
 # Branch that PRs target by default
 base_branch: "main"

@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState, useCallback, useLayoutEffect } from
 import { Stage, Layer, Image as KonvaImage, Line, Arrow, Rect, Ellipse, Text, Transformer } from 'react-konva';
 import Konva from 'konva';
 import './editor.css';
-import logo from '../../assets/logo.png';
 import {
     IconUndo, IconRedo, IconCopy, IconSave, IconDownload,
     IconCrop, IconPencil, IconLine, IconArrow, IconSquare,
@@ -44,6 +43,12 @@ interface DrawingElement {
     textCase?: 'none' | 'uppercase' | 'capitalize';
     align?: string;
     imageSrc?: string;
+}
+
+interface HistoryEntry {
+    elements: DrawingElement[];
+    image: HTMLImageElement;
+    stageSize: { width: number; height: number };
 }
 
 interface Preset {
@@ -151,7 +156,7 @@ function Editor() {
     const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
 
     const [tool, setTool] = useState<Tool>('crop');
-    const [color, setColor] = useState('#a173fe');
+    const [color, setColor] = useState('#ff0000');
     const [strokeWidth, setStrokeWidth] = useState(18);
     const [filled, setFilled] = useState(false);
 
@@ -180,8 +185,8 @@ function Editor() {
     const [isDrawing, setIsDrawing] = useState(false);
     const [currentElement, setCurrentElement] = useState<DrawingElement | null>(null);
 
-    const [history, setHistory] = useState<DrawingElement[][]>([[]]);
-    const [historyIndex, setHistoryIndex] = useState(0);
+    const [history, setHistory] = useState<HistoryEntry[]>([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
 
     const [textInput, setTextInput] = useState<{ x: number; y: number; visible: boolean; editingId: string | null }>({
         x: 0, y: 0, visible: false, editingId: null
@@ -205,6 +210,7 @@ function Editor() {
     const [activePresetId, setActivePresetId] = useState<string | null>(null);
     const [isSavingPreset, setIsSavingPreset] = useState(false);
     const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     const [presetNameInput, setPresetNameInput] = useState('');
     const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -333,7 +339,10 @@ function Editor() {
                         console.log(`Editor: Image rendered successfully (${img.width}x${img.height})`);
                         setImage(img);
 
-                        setStageSize({ width: img.width, height: img.height });
+                        const size = { width: img.width, height: img.height };
+                        setStageSize(size);
+                        setHistory([{ elements: [], image: img, stageSize: size }]);
+                        setHistoryIndex(0);
                         setTimeout(() => {
                             if (canvasContainerRef.current) {
                                 const containerWidth = canvasContainerRef.current.clientWidth - 40;
@@ -590,11 +599,12 @@ function Editor() {
     };
 
     const addToHistory = useCallback((newElements: DrawingElement[]) => {
+        if (!image) return;
         const newHistory = history.slice(0, historyIndex + 1);
-        newHistory.push([...newElements]);
+        newHistory.push({ elements: [...newElements], image, stageSize });
         setHistory(newHistory);
         setHistoryIndex(newHistory.length - 1);
-    }, [history, historyIndex]);
+    }, [history, historyIndex, image, stageSize]);
 
     const getPointerPosition = () => {
         const stage = stageRef.current;
@@ -983,19 +993,63 @@ function Editor() {
         e.target.value = '';
     };
 
-    const undo = () => {
+    const undo = useCallback(() => {
         if (historyIndex > 0) {
+            const entry = history[historyIndex - 1];
             setHistoryIndex(historyIndex - 1);
-            setElements([...history[historyIndex - 1]]);
+            setElements([...entry.elements]);
+            setImage(entry.image);
+            setStageSize(entry.stageSize);
         }
+    }, [historyIndex, history]);
+
+    const redo = useCallback(() => {
+        if (historyIndex < history.length - 1) {
+            const entry = history[historyIndex + 1];
+            setHistoryIndex(historyIndex + 1);
+            setElements([...entry.elements]);
+            setImage(entry.image);
+            setStageSize(entry.stageSize);
+        }
+    }, [historyIndex, history]);
+
+    const toolShortcuts: Record<string, Tool> = {
+        c: 'crop', p: 'pencil', l: 'line', a: 'arrow',
+        r: 'rectangle', o: 'circle', t: 'text', b: 'blur', i: 'image',
     };
 
-    const redo = () => {
-        if (historyIndex < history.length - 1) {
-            setHistoryIndex(historyIndex + 1);
-            setElements([...history[historyIndex + 1]]);
-        }
-    };
+    const shortcutForTool = (id: Tool): string | undefined =>
+        Object.entries(toolShortcuts).find(([, v]) => v === id)?.[0]?.toUpperCase();
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const tag = (e.target as HTMLElement).tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+            const mod = e.ctrlKey || e.metaKey;
+            if (mod && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            } else if (mod && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+                e.preventDefault();
+                redo();
+            }
+
+            if (mod || e.altKey) return;
+            const matched = toolShortcuts[e.key.toLowerCase()];
+            if (matched) {
+                e.preventDefault();
+                if (matched === 'image') {
+                    triggerImageUpload();
+                } else {
+                    setTool(matched);
+                    loadToolSettings(matched);
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [undo, redo]);
 
     const handleDownload = (format: 'png' | 'jpeg') => {
         const stage = stageRef.current;
@@ -1035,10 +1089,16 @@ function Editor() {
 
         const newImg = new Image();
         newImg.onload = () => {
+            const newSize = { width, height };
             setImage(newImg);
-            setStageSize({ width, height });
+            setStageSize(newSize);
             setCropRect(null);
-            setElements([]); setHistory([[]]); setHistoryIndex(0);
+            setElements([]);
+
+            const newHistory = history.slice(0, historyIndex + 1);
+            newHistory.push({ elements: [], image: newImg, stageSize: newSize });
+            setHistory(newHistory);
+            setHistoryIndex(newHistory.length - 1);
         };
         newImg.src = canvas.toDataURL();
     };
@@ -1109,7 +1169,35 @@ function Editor() {
         <div className="editor-container">
             <header className="editor-header">
                 <div className="header-left">
-                    <img src={logo} alt="Screenshot Editor Pro" className="brand-logo" />
+                    <span className="brand-logo-text">Rad<span className="brand-accent">Kit</span></span>
+                </div>
+                <div className="header-tools">
+                    {tools.map(t => (
+                        <button key={t.id} className={`tool-btn ${tool === t.id ? 'active' : ''}`} onClick={() => {
+                            if (t.id === 'image') {
+                                triggerImageUpload();
+                            } else {
+                                setTool(t.id);
+                                loadToolSettings(t.id);
+                            }
+                        }} title={`${t.label}${shortcutForTool(t.id) ? ` (${shortcutForTool(t.id)})` : ''}`}>
+                            <span className="icon">{t.icon}</span>
+                            <span className="btn-label">{t.label}{shortcutForTool(t.id) ? ` (${shortcutForTool(t.id)})` : ''}</span>
+                        </button>
+                    ))}
+                    <div className="h-divider"></div>
+                    {tool !== 'blur' && tool !== 'crop' && (
+                        <div className="color-tool">
+                            <input type="color" value={color} onChange={(e) => { setColor(e.target.value); setActivePresetId(null); }} className="color-input" />
+                            <div className="color-preview" style={{ backgroundColor: color }}></div>
+                        </div>
+                    )}
+                    {['rectangle', 'circle'].includes(tool) && (
+                        <button className={`side-tool-btn ${filled ? 'active' : ''}`} onClick={() => { setFilled(!filled); setActivePresetId(null); }} title="Fill Shape">
+                            <IconCheck />
+                        </button>
+                    )}
+                    <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleImageFileChange} />
                 </div>
                 <div className="header-actions">
                     <div className="templates-menu-wrapper" ref={templatesRef}>
@@ -1177,41 +1265,12 @@ function Editor() {
                     </div>
                     <div className="header-divider"></div>
                     <button onClick={handleCopy} title="Copy Content"><IconCopy /></button>
+                    <button onClick={() => setSidebarOpen(!sidebarOpen)} title="Layers & Properties" className={sidebarOpen ? 'active' : ''}><IconLayers /></button>
                     <button className="btn-primary" onClick={() => handleDownload('png')}>Download</button>
                 </div>
             </header>
 
             <main className="editor-main">
-                <aside className="editor-left-toolbar">
-                    <div className="center-toolbar">
-                        {tools.map(t => (
-                            <button key={t.id} className={`tool-btn ${tool === t.id ? 'active' : ''}`} onClick={() => {
-                                if (t.id === 'image') {
-                                    triggerImageUpload();
-                                } else {
-                                    setTool(t.id);
-                                    loadToolSettings(t.id);
-                                }
-                            }} title={t.label}>
-                                <span className="icon">{t.icon}</span>
-                                <span className="btn-label">{t.label}</span>
-                            </button>
-                        ))}
-                        <div className="v-divider"></div>
-                        {tool !== 'blur' && tool !== 'crop' && (
-                            <div className="color-tool">
-                                <input type="color" value={color} onChange={(e) => { setColor(e.target.value); setActivePresetId(null); }} className="color-input" />
-                                <div className="color-preview" style={{ backgroundColor: color }}></div>
-                            </div>
-                        )}
-                        {['rectangle', 'circle'].includes(tool) && (
-                            <button className={`side-tool-btn ${filled ? 'active' : ''}`} onClick={() => { setFilled(!filled); setActivePresetId(null); }} title="Fill Shape">
-                                <IconCheck />
-                            </button>
-                        )}
-                    </div>
-                    <input type="file" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleImageFileChange} />
-                </aside>
                 <div className="canvas-area">
                     <div className="canvas-viewport" ref={canvasContainerRef}>
                         <div className="canvas-stage-wrapper" style={{ minWidth: stageSize.width * zoom }}>
@@ -1334,7 +1393,7 @@ function Editor() {
                     </div>
                 </div>
 
-                <aside className="editor-sidebar">
+                {sidebarOpen && <aside className="editor-sidebar">
                     <div className="sidebar-section layers">
                         <div className="section-header"><IconLayers /><span>Layers</span><span className="badge">{elements.length}</span></div>
                         <div className="section-content scrollable">
@@ -1539,7 +1598,7 @@ function Editor() {
                             })() : <div className="empty-state"><p>Select an element</p></div>}
                         </div>
                     </div>
-                </aside>
+                </aside>}
             </main>
 
             <div className="toast-container">
