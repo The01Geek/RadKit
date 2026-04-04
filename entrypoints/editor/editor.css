@@ -818,46 +818,29 @@ body {
   color: white;
 }
 
-/* Floating Text Input Overlay */
-.floating-text-input {
+/* Inline Text Editor */
+.inline-text-editor {
   position: absolute;
-  background: var(--bg-surface);
-  border: 1px solid var(--brand-primary);
-  padding: 8px;
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.12);
-  z-index: 5000;
-  transform: translate(-50%, -100%);
-  margin-top: -20px;
-}
-
-.floating-text-input input {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-main);
-  border-radius: 4px;
-  padding: 8px 12px;
-  color: var(--text-main);
+  background: transparent;
+  border: 1px solid rgba(99, 102, 241, 0.5);
+  border-radius: 1px;
+  padding: 0;
+  margin: 0;
   outline: none;
-  width: 280px;
-  font-size: 14px;
+  resize: none;
+  overflow: hidden;
+  z-index: 5000;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-sizing: content-box;
+  caret-color: currentColor;
+  width: auto;
+  height: auto;
 }
 
-.text-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.text-actions button {
-  padding: 4px 8px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-main);
-  color: var(--text-main);
-  border-radius: 4px;
-  cursor: pointer;
+.inline-text-editor::placeholder {
+  color: inherit;
+  opacity: 0.4;
 }
 
 /* Fixed Controls (Zoom) */

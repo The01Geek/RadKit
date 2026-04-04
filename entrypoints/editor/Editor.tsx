@@ -145,7 +145,7 @@ const ImageElement: React.FC<{
 function Editor() {
     const stageRef = useRef<Konva.Stage>(null);
     const transformerRef = useRef<Konva.Transformer>(null);
-    const textInputRef = useRef<HTMLInputElement>(null);
+    const textInputRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const canvasContainerRef = useRef<HTMLDivElement>(null);
     const activeFontLoads = useRef<Set<string>>(new Set());
@@ -166,7 +166,7 @@ function Editor() {
     const [pointerAtStart, setPointerAtStart] = useState(false);
 
     const [fontFamily, setFontFamily] = useState('Inter');
-    const [fontSize, setFontSize] = useState(80);
+    const [fontSize, setFontSize] = useState(30);
     const [bgColor, setBgColor] = useState('#ffffff');
     const [strokeColor, setStrokeColor] = useState('#ff0000');
     const [shadowBlur, setShadowBlur] = useState(0);
@@ -192,6 +192,7 @@ function Editor() {
         x: 0, y: 0, visible: false, editingId: null
     });
     const [textValue, setTextValue] = useState('');
+    const textValueRef = useRef('');
     const [popupCorrection, setPopupCorrection] = useState({ x: 0, y: 0 });
     const [viewportScroll, setViewportScroll] = useState({ left: 0, top: 0 });
     const [isCursorVisible, setIsCursorVisible] = useState(true);
@@ -224,7 +225,7 @@ function Editor() {
         rectangle: { color: '#ff0000', strokeWidth: 6, opacity: 1, filled: false },
         circle: { color: '#ff0000', strokeWidth: 6, opacity: 1, filled: false },
         text: {
-            color: '#ff0000', fontSize: 80, fontFamily: 'Inter', align: 'left',
+            color: '#ff0000', fontSize: 30, fontFamily: 'Inter', align: 'left',
             strokeWidth: 0, strokeColor: '#000000', bgColor: '#ffffff',
             shadowBlur: 0, shadowOffset: 0, shadowColor: '#000000',
             letterSpacing: 0, lineHeight: 1.2, textCase: 'none'
@@ -488,52 +489,16 @@ function Editor() {
         }
     }, [textInput.visible]);
 
+    // Auto-resize textarea to fit content
     useLayoutEffect(() => {
-        if (textInput.visible && floatingInputRef.current && canvasContainerRef.current) {
-            const popup = floatingInputRef.current;
-            const viewport = canvasContainerRef.current;
-
-            const vRect = viewport.getBoundingClientRect();
-
-            // Calculate baseline absolute position within viewport
-            // We need to account for stage-wrapper margin: 0 auto and padding: 30px
-            const stageWrapper = viewport.querySelector('.canvas-stage-wrapper');
-            if (!stageWrapper) return;
-            const swRect = stageWrapper.getBoundingClientRect();
-
-            // Correct position relative to viewport (including scroll)
-            const targetX = swRect.left + (textInput.x * zoom);
-            const targetY = swRect.top + (textInput.y * zoom);
-
-            // Let's set the popup position simply by setting its style in the effect for max performance
-            // or use the state if we want to keep it "React-y". Let's use state for simplicity since it's already there.
-
-            // Now calculate corrections to keep it inside vRect
-            const pWidth = 300; // Expected width from CSS
-            const pHeight = 80;  // Expected height from CSS
-
-            let dx = 0;
-            let dy = 0;
-
-            const buffer = 40;
-
-            if (targetX - pWidth / 2 < vRect.left + buffer) {
-                dx = (vRect.left + buffer) - (targetX - pWidth / 2);
-            } else if (targetX + pWidth / 2 > vRect.right - buffer) {
-                dx = (vRect.right - buffer) - (targetX + pWidth / 2);
-            }
-
-            if (targetY - pHeight < vRect.top + buffer) {
-                dy = (vRect.top + buffer) - (targetY - pHeight);
-            } else if (targetY > vRect.bottom - buffer) {
-                dy = (vRect.bottom - buffer) - targetY;
-            }
-
-            setPopupCorrection({ x: dx, y: dy });
-        } else {
-            setPopupCorrection({ x: 0, y: 0 });
+        if (textInput.visible && textInputRef.current) {
+            const ta = textInputRef.current;
+            ta.style.height = 'auto';
+            ta.style.height = ta.scrollHeight + 'px';
+            ta.style.width = 'auto';
+            ta.style.width = Math.max(60, ta.scrollWidth + 4) + 'px';
         }
-    }, [textInput.visible, textInput.x, textInput.y, zoom, viewportScroll]);
+    }, [textInput.visible, textValue]);
 
     // Track scroll
     useEffect(() => {
@@ -555,16 +520,6 @@ function Editor() {
         }
     }, [tool]);
 
-    // Cursor blinking effect
-    useEffect(() => {
-        if (!textInput.visible) return;
-
-        const interval = setInterval(() => {
-            setIsCursorVisible(prev => !prev);
-        }, 500);
-
-        return () => clearInterval(interval);
-    }, [textInput.visible]);
 
     const updateElementProperty = (id: string, updates: Partial<DrawingElement>, saveToHistory = true) => {
         const newElements = elements.map(el =>
@@ -633,8 +588,14 @@ function Editor() {
 
         if (tool === 'text') {
             if (clickedOnEmpty) {
-                setTextInput({ x: pos.x, y: pos.y, visible: true, editingId: null });
-                setTextValue('');
+                if (textInput.visible) {
+                    // Submit current text and close — don't open a new one
+                    handleTextSubmit();
+                } else {
+                    setTextInput({ x: pos.x, y: pos.y, visible: true, editingId: null });
+                    textValueRef.current = '';
+                    setTextValue('');
+                }
             }
             return;
         }
@@ -716,20 +677,22 @@ function Editor() {
     };
 
     const handleTextSubmit = useCallback(() => {
-        if (!textValue.trim()) {
+        // Read from ref to avoid race condition with blur/mousedown event ordering
+        const val = textValueRef.current.trim();
+        if (!val) {
             setTextInput(prev => ({ ...prev, visible: false }));
             return;
         }
 
         if (textInput.editingId) {
-            updateElementProperty(textInput.editingId, { text: textValue.trim(), color });
+            updateElementProperty(textInput.editingId, { text: val, color });
         } else {
             const newElement: DrawingElement = {
                 id: `element-${Date.now()}`,
                 type: 'text',
                 x: textInput.x,
                 y: textInput.y,
-                text: textValue.trim(),
+                text: val,
                 color,
                 strokeWidth,
                 visible: true,
@@ -743,7 +706,7 @@ function Editor() {
         }
         setTextInput(prev => ({ ...prev, visible: false, editingId: null }));
         setTextValue('');
-    }, [textValue, textInput, elements, color, strokeWidth, elementCounter, addToHistory, fontFamily, fontSize, bgColor, strokeColor, shadowBlur, shadowOffset, shadowColor, letterSpacing, lineHeight, textCase, align]);
+    }, [textInput, elements, color, strokeWidth, elementCounter, addToHistory, fontFamily, fontSize, bgColor, strokeColor, shadowBlur, shadowOffset, shadowColor, letterSpacing, lineHeight, textCase, align]);
 
     const handleElementClick = (id: string) => {
         const el = elements.find(e => e.id === id);
@@ -780,10 +743,6 @@ function Editor() {
                 if (el.lineHeight !== undefined) setLineHeight(el.lineHeight);
             }
 
-            if (el.type === 'text' && tool === 'text') {
-                setTextInput({ x: el.x, y: el.y, visible: true, editingId: id });
-                setTextValue(el.text || '');
-            }
         }
     };
 
@@ -1149,6 +1108,15 @@ function Editor() {
         const commonProps: any = {
             key: el.id, id: el.id, x: el.x, y: el.y, draggable: true, opacity: el.opacity ?? 1, dash: el.dash,
             onMouseDown: (e: any) => { e.cancelBubble = true; handleElementClick(el.id); },
+            onDblClick: (e: any) => {
+                if (el.type === 'text') {
+                    e.cancelBubble = true;
+                    setSelectedId(null);
+                    setTextInput({ x: el.x, y: el.y, visible: true, editingId: el.id });
+                    textValueRef.current = el.text || '';
+                    setTextValue(el.text || '');
+                }
+            },
             onDragEnd: (e: any) => handleDragEnd(el.id, e),
             onTransformEnd: (e: any) => handleTransformEnd(el.id, e),
         };
@@ -1266,8 +1234,8 @@ function Editor() {
                     </div>
                     <div className="header-divider"></div>
                     <button onClick={handleCopy} title="Copy Content"><IconCopy /></button>
-                    <button onClick={() => setSidebarOpen(!sidebarOpen)} title="Layers & Properties" className={sidebarOpen ? 'active' : ''}><IconLayers /></button>
                     <button className="btn-primary" onClick={() => handleDownload('png')}>Download</button>
+                    <button onClick={() => setSidebarOpen(!sidebarOpen)} title="Layers & Properties" className={sidebarOpen ? 'active' : ''}><IconLayers /></button>
                 </div>
             </header>
 
@@ -1291,88 +1259,43 @@ function Editor() {
                                     {elements.map(renderElement)}
                                     {currentElement && renderElement(currentElement)}
 
-                                    {/* Live Text Preview & Cursor */}
-                                    {textInput.visible && (
-                                        <>
-                                            <Text
-                                                ref={previewTextRef}
-                                                x={textInput.x}
-                                                y={textInput.y}
-                                                text={transformText(textValue || ' ', (textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.textCase : textCase) || 'none')}
-                                                fontSize={(textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.fontSize : fontSize) || 32}
-                                                fontFamily={(textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.fontFamily : fontFamily) || 'Inter'}
-                                                fontStyle="bold"
-                                                fill={(textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.color : color) || '#000000'}
-                                                stroke={(textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.strokeColor : strokeColor) || (textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.color : color)}
-                                                strokeWidth={(textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.strokeWidth : strokeWidth) || 0}
-                                                shadowColor={(textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.shadowColor : shadowColor) || 'transparent'}
-                                                shadowBlur={(textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.shadowBlur : shadowBlur) || 0}
-                                                shadowOffsetX={(textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.shadowOffset : shadowOffset) || 0}
-                                                shadowOffsetY={(textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.shadowOffset : shadowOffset) || 0}
-                                                letterSpacing={(textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.letterSpacing : letterSpacing) || 0}
-                                                lineHeight={(textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.lineHeight : lineHeight) || 1.2}
-                                                align={(textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.align : align) || 'left'}
-                                                verticalAlign="middle"
-                                                offsetX={(() => {
-                                                    const node = previewTextRef.current;
-                                                    if (!node) return 0;
-                                                    const a = (textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.align : align) || 'left';
-                                                    if (a === 'center') return node.width() / 2;
-                                                    if (a === 'right') return node.width();
-                                                    return 0;
-                                                })()}
-                                                offsetY={(() => {
-                                                    const node = previewTextRef.current;
-                                                    return node ? node.height() / 2 : 0;
-                                                })()}
-                                                draggable={true}
-                                                onDragMove={(e) => {
-                                                    setTextInput(prev => ({ ...prev, x: e.target.x(), y: e.target.y() }));
-                                                    if (textInput.editingId) {
-                                                        updateElementProperty(textInput.editingId, { x: e.target.x(), y: e.target.y() }, false);
-                                                    }
-                                                }}
-                                                onDragEnd={(e) => {
-                                                    setTextInput(prev => ({ ...prev, x: e.target.x(), y: e.target.y() }));
-                                                    if (textInput.editingId) {
-                                                        updateElementProperty(textInput.editingId, { x: e.target.x(), y: e.target.y() }, true);
-                                                    }
-                                                }}
-                                                onMouseDown={(e) => { e.cancelBubble = true; if (textInput.editingId) handleElementClick(textInput.editingId); }}
-                                                onMouseEnter={(e) => {
-                                                    const container = e.target.getStage()?.container();
-                                                    if (container) container.style.cursor = 'move';
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    const container = e.target.getStage()?.container();
-                                                    if (container) container.style.cursor = 'default';
-                                                }}
-                                            />
-                                            {isCursorVisible && (
-                                                <Rect
-                                                    x={(() => {
-                                                        const node = previewTextRef.current;
-                                                        if (!node) return textInput.x;
-                                                        const a = (textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.align : align) || 'left';
-                                                        const w = node.width();
-                                                        if (a === 'center') return textInput.x + w / 2 + 2;
-                                                        if (a === 'right') return textInput.x + 2;
-                                                        return textInput.x + w + 2;
-                                                    })()}
-                                                    y={textInput.y - (previewTextRef.current?.height() ? previewTextRef.current.height() / 4 : 10)}
-                                                    width={2}
-                                                    height={previewTextRef.current?.height() ? previewTextRef.current.height() / 2 : 20}
-                                                    fill={(textInput.editingId ? elements.find(e => e.id === textInput.editingId)?.color : color) || '#000000'}
-                                                    listening={false}
-                                                />
-                                            )}
-                                        </>
-                                    )}
-
                                     {cropRect && <Rect x={cropRect.width < 0 ? cropRect.x + cropRect.width : cropRect.x} y={cropRect.height < 0 ? cropRect.y + cropRect.height : cropRect.y} width={Math.abs(cropRect.width)} height={Math.abs(cropRect.height)} stroke="var(--brand-primary)" strokeWidth={2 / zoom} fill="rgba(99, 102, 241, 0.1)" dash={[5, 5]} />}
                                     <Transformer ref={transformerRef} boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5) ? oldBox : newBox} />
                                 </Layer>
                             </Stage>
+                            {textInput.visible && (() => {
+                                const editEl = textInput.editingId ? elements.find(e => e.id === textInput.editingId) : null;
+                                const fs = (editEl?.fontSize ?? fontSize) * zoom;
+                                const ff = editEl?.fontFamily ?? fontFamily;
+                                const tc = editEl?.color ?? color;
+                                return (
+                                    <textarea
+                                        ref={textInputRef}
+                                        className="inline-text-editor"
+                                        value={textValue}
+                                        onChange={(e) => { textValueRef.current = e.target.value; setTextValue(e.target.value); }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Escape') handleTextSubmit();
+                                        }}
+                                        onBlur={handleTextSubmit}
+                                        placeholder="Type here..."
+                                        style={{
+                                            position: 'absolute',
+                                            left: textInput.x * zoom,
+                                            top: textInput.y * zoom,
+                                            fontSize: fs,
+                                            fontFamily: ff,
+                                            color: tc,
+                                            fontWeight: 'bold',
+                                            lineHeight: editEl?.lineHeight ?? lineHeight,
+                                            letterSpacing: (editEl?.letterSpacing ?? letterSpacing) * zoom,
+                                            textAlign: (editEl?.align as any) ?? align,
+                                            minWidth: '60px',
+                                            minHeight: fs + 'px',
+                                        }}
+                                    />
+                                );
+                            })()}
                         </div>
 
                         {cropRect && !isCropping && Math.abs(cropRect.width) > 5 && (
@@ -1613,40 +1536,6 @@ function Editor() {
                 ))}
             </div>
 
-            {textInput.visible && (
-                <div
-                    ref={floatingInputRef}
-                    className="floating-text-input"
-                    style={{
-                        position: 'fixed',
-                        left: (() => {
-                            const viewport = canvasContainerRef.current;
-                            if (!viewport) return 0;
-                            const sw = viewport.querySelector('.canvas-stage-wrapper');
-                            if (!sw) return 0;
-                            const r = sw.getBoundingClientRect();
-                            return r.left + (textInput.x * zoom) + popupCorrection.x;
-                        })(),
-                        top: (() => {
-                            const viewport = canvasContainerRef.current;
-                            if (!viewport) return 0;
-                            const sw = viewport.querySelector('.canvas-stage-wrapper');
-                            if (!sw) return 0;
-                            const r = sw.getBoundingClientRect();
-                            return r.top + (textInput.y * zoom) + popupCorrection.y;
-                        })(),
-                        transform: 'translate(-50%, -100%)',
-                        zIndex: 9999,
-                        marginTop: '-20px'
-                    }}
-                >
-                    <input ref={textInputRef} type="text" value={textValue} onChange={(e) => setTextValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleTextSubmit(); if (e.key === 'Escape') setTextInput(prev => ({ ...prev, visible: false })); }} placeholder="Type something..." />
-                    <div className="text-actions">
-                        <button onClick={handleTextSubmit} title="Confirm"><IconCheck /></button>
-                        <button onClick={() => setTextInput(prev => ({ ...prev, visible: false }))} title="Cancel"><IconClose /></button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
