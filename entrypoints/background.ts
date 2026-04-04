@@ -68,6 +68,10 @@ export default defineBackground(() => {
         case 'fullpage':
           imageDataUrl = await captureFullPage();
           break;
+        case 'visible-delayed':
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          imageDataUrl = await captureVisibleTab();
+          break;
         default:
           throw new Error('Unknown capture mode');
       }

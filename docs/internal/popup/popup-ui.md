@@ -5,7 +5,7 @@ The extension popup (`entrypoints/popup/`) is a React app shown when the user cl
 ## Layout
 
 - **Header**: "RadKit" brand name with purple accent on "Kit", plus an "Alt+S" shortcut hint badge
-- **3 capture cards**: Stacked vertically, each with an icon and label/description
+- **4 capture cards**: Stacked vertically, each with an icon and label/description
 - **Status bar**: Shown during capture with a pulsing dot animation
 
 ## Capture Cards
@@ -15,6 +15,7 @@ The extension popup (`entrypoints/popup/`) is a React app shown when the user cl
 | Visible Viewport | `visible` | `IconMonitor` | "Capture what's on screen" |
 | Select Area | `selection` | `IconSelection` | "Draw a custom rectangle" |
 | Full Page | `fullpage` | `IconFile` | "Capture top to bottom" |
+| Visible After Delay | `visible-delayed` | `IconTimer` | "3-second countdown" |
 
 Each card calls `handleCapture(mode)` on click, which:
 1. Sets `isCapturing = true` and shows "Capturing..." status
