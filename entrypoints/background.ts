@@ -43,14 +43,16 @@ export default defineBackground(() => {
     return false;
   });
 
-  // Listen for keyboard shortcut
+  // Listen for keyboard shortcuts
   chrome.commands.onCommand.addListener(async (command) => {
-    if (command === 'capture-visible') {
-      try {
+    try {
+      if (command === 'capture-visible') {
         await handleCapture('visible');
-      } catch (error) {
-        console.error('Keyboard shortcut capture failed:', error);
+      } else if (command === 'capture-desktop') {
+        await handleCapture('desktop');
       }
+    } catch (error) {
+      console.error('Keyboard shortcut capture failed:', error);
     }
   });
 
@@ -71,6 +73,9 @@ export default defineBackground(() => {
         case 'visible-delayed':
           await new Promise(resolve => setTimeout(resolve, 3000));
           imageDataUrl = await captureVisibleTab();
+          break;
+        case 'desktop':
+          imageDataUrl = await captureDesktopMedia();
           break;
         default:
           throw new Error('Unknown capture mode');
@@ -106,6 +111,56 @@ export default defineBackground(() => {
         }
       );
     });
+  }
+
+  async function captureDesktopMedia(): Promise<string> {
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+
+    // Prompt user to pick a screen, window, or tab
+    const streamId = await new Promise<string>((resolve, reject) => {
+      chrome.desktopCapture.chooseDesktopMedia(
+        ['screen', 'window', 'tab'],
+        tab!,
+        (id) => {
+          if (!id) {
+            reject(new Error('Selection canceled'));
+          } else {
+            resolve(id);
+          }
+        }
+      );
+    });
+
+    // Create offscreen document for getUserMedia (service workers have no DOM)
+    try {
+      await chrome.offscreen.createDocument({
+        url: 'offscreen.html',
+        reasons: [chrome.offscreen.Reason.USER_MEDIA],
+        justification: 'Capture a frame from the desktop media stream',
+      });
+    } catch {
+      // Document may already exist from a previous capture
+    }
+
+    try {
+      const response: any = await chrome.runtime.sendMessage({
+        type: 'capture-desktop-frame',
+        streamId,
+      });
+
+      if (!response?.success) {
+        throw new Error(response?.error || 'Frame capture failed');
+      }
+
+      return response.dataUrl;
+    } finally {
+      // Clean up the offscreen document
+      try {
+        await chrome.offscreen.closeDocument();
+      } catch {
+        // Already closed or never created
+      }
+    }
   }
 
   async function captureWithSelection(): Promise<string> {

@@ -88,3 +88,30 @@ Uses `OffscreenCanvas` in the service worker context:
 - **50-iteration limit** — safety valve for infinite-scroll pages
 - **Lazy-loaded content** — 800ms settle time may not be enough for slow connections
 - **Dynamic content** — content that changes between scrolls can cause visual seams
+
+## Screen / Window Capture (`captureDesktopMedia`)
+
+Captures the entire screen, a specific application window, or a browser tab using Chrome's `desktopCapture` API. This is the only mode that can capture content outside the browser.
+
+- **Triggered by**: Popup "Screen / Window" button, or `Alt+D` keyboard shortcut
+- **Permissions**: Requires `desktopCapture` and `offscreen` manifest permissions
+- **Limitations**: Chrome-only API (no Firefox support); requires user gesture context
+
+### Flow
+
+1. **`chrome.desktopCapture.chooseDesktopMedia`** — opens Chrome's native media picker for screens, windows, and tabs
+2. **User selects a source** — callback receives a `streamId` (empty string if canceled)
+3. **Create offscreen document** — `chrome.offscreen.createDocument()` with `USER_MEDIA` reason, since service workers lack DOM access for `getUserMedia`
+4. **Send `streamId` to offscreen** — via `chrome.runtime.sendMessage`
+5. **Offscreen captures frame** — calls `navigator.mediaDevices.getUserMedia` with `chromeMediaSource: 'desktop'` constraint, plays the stream in a `<video>` element, draws one frame to a `<canvas>`, and returns the PNG data URL
+6. **Stop stream tracks** — all `MediaStreamTrack`s are stopped to release resources
+7. **Close offscreen document** — cleaned up after each capture
+8. **Store and open editor** — image stored under `capturedImage` in `browser.storage.local`, editor tab created
+
+### Cancellation Handling
+
+If the user dismisses the native picker without selecting a source, `chooseDesktopMedia` returns an empty `streamId`. This is caught as a "Selection canceled" error and handled gracefully — no editor is opened, and no error is shown to the user beyond a status message.
+
+### Why Offscreen Document?
+
+In Manifest V3, the background is a service worker with no DOM. `navigator.mediaDevices.getUserMedia` requires a document context (DOM access for `<video>` and `<canvas>` elements). The offscreen document (`public/offscreen.html`) provides this context. It is created on demand and destroyed after each capture.

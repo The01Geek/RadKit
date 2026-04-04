@@ -14,13 +14,19 @@ export default defineConfig({
       96: 'icon/96.png',
       128: 'icon/128.png',
     },
-    permissions: ['activeTab', 'storage', 'scripting', 'unlimitedStorage'],
+    permissions: ['activeTab', 'storage', 'scripting', 'unlimitedStorage', 'desktopCapture', 'offscreen'],
     commands: {
       'capture-visible': {
         suggested_key: {
           default: 'Alt+S',
         },
         description: 'Capture visible viewport',
+      },
+      'capture-desktop': {
+        suggested_key: {
+          default: 'Alt+D',
+        },
+        description: 'Capture screen or window',
       },
     },
   },
