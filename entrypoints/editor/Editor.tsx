@@ -640,8 +640,8 @@ function Editor() {
             setCurrentElement({
                 ...currentElement,
                 points: [0, 0, width, height],
-                width: Math.abs(width),
-                height: Math.abs(height),
+                width,
+                height,
             });
         }
     };
@@ -663,12 +663,28 @@ function Editor() {
     const handleStageMouseUp = () => {
         if (!isDrawing || !currentElement) return;
         setIsDrawing(false);
-        const hasSize = currentElement.type === 'pencil'
-            ? (currentElement.points?.length || 0) > 4
-            : (currentElement.width || 0) > 5 || (currentElement.height || 0) > 5;
+
+        // Normalize: ensure x,y is top-left and width/height are positive
+        let finalElement = currentElement;
+        if (currentElement.type !== 'pencil' && currentElement.width != null && currentElement.height != null) {
+            const w = currentElement.width;
+            const h = currentElement.height;
+            finalElement = {
+                ...currentElement,
+                x: w < 0 ? currentElement.x + w : currentElement.x,
+                y: h < 0 ? currentElement.y + h : currentElement.y,
+                width: Math.abs(w),
+                height: Math.abs(h),
+                points: [0, 0, Math.abs(w), Math.abs(h)],
+            };
+        }
+
+        const hasSize = finalElement.type === 'pencil'
+            ? (finalElement.points?.length || 0) > 4
+            : (Math.abs(finalElement.width || 0)) > 5 || (Math.abs(finalElement.height || 0)) > 5;
 
         if (hasSize) {
-            const newElements = [...elements, currentElement];
+            const newElements = [...elements, finalElement];
             setElements(newElements);
             addToHistory(newElements);
             setElementCounter(prev => prev + 1);
@@ -1037,15 +1053,37 @@ function Editor() {
     };
 
     const applyCrop = () => {
-        if (!cropRect || !image) return;
+        if (!cropRect || !image || !stageRef.current) return;
         const x = cropRect.width < 0 ? cropRect.x + cropRect.width : cropRect.x;
         const y = cropRect.height < 0 ? cropRect.y + cropRect.height : cropRect.y;
         const width = Math.abs(cropRect.width);
         const height = Math.abs(cropRect.height);
 
+        // Temporarily hide crop rect, transformer, and selection so they don't appear in the export
+        const transformer = transformerRef.current;
+        if (transformer) transformer.visible(false);
+        // Hide crop overlay by temporarily clearing it from state won't work synchronously,
+        // so find and hide all non-element shapes (crop rect uses dash)
+        const stage = stageRef.current;
+        const layer = stage.getLayers()[0];
+        const nodesToHide: any[] = [];
+        layer.find('Rect').forEach((node: any) => {
+            if (node.dash() && node.dash().length > 0 && !node.id()) {
+                node.visible(false);
+                nodesToHide.push(node);
+            }
+        });
+
+        // Flatten the entire stage (background + all elements) at 1x scale
+        const fullCanvas = stage.toCanvas({ pixelRatio: 1 / zoom });
+
+        if (transformer) transformer.visible(true);
+        nodesToHide.forEach(n => n.visible(true));
+
+        // Crop from the flattened canvas
         const canvas = document.createElement('canvas');
         canvas.width = width; canvas.height = height;
-        canvas.getContext('2d')?.drawImage(image, x, y, width, height, 0, 0, width, height);
+        canvas.getContext('2d')?.drawImage(fullCanvas, x, y, width, height, 0, 0, width, height);
 
         const newImg = new Image();
         newImg.onload = () => {
@@ -1125,9 +1163,9 @@ function Editor() {
             case 'pencil': return <Line {...commonProps} points={el.points} stroke={el.color} strokeWidth={el.strokeWidth} lineCap="round" lineJoin="round" />;
             case 'line': return <Line {...commonProps} points={el.points} stroke={el.color} strokeWidth={el.strokeWidth} lineCap="round" />;
             case 'arrow': return <Arrow {...commonProps} points={el.points} stroke={el.color} fill={el.color} strokeWidth={el.strokeWidth} pointerLength={el.strokeWidth * 4} pointerWidth={el.strokeWidth * 3} pointerAtBeginning={el.pointerAtStart} />;
-            case 'rectangle': return <Rect {...commonProps} width={el.width} height={el.height} stroke={el.color} strokeWidth={el.strokeWidth} fill={el.filled ? el.color + '4D' : 'rgba(0,0,0,0.05)'} />;
-            case 'blur': return <PixelatedBlur image={image} x={el.x} y={el.y} width={el.width || 0} height={el.height || 0} pixelSize={12} commonProps={commonProps} />;
-            case 'circle': return <Ellipse {...commonProps} radiusX={(el.width || 0) / 2} radiusY={(el.height || 0) / 2} stroke={el.color} strokeWidth={el.strokeWidth} fill={el.filled ? el.color + '4D' : 'rgba(0,0,0,0.05)'} offsetX={-(el.width || 0) / 2} offsetY={-(el.height || 0) / 2} />;
+            case 'rectangle': return <Rect {...commonProps} x={el.x + Math.min(0, el.width || 0)} y={el.y + Math.min(0, el.height || 0)} width={Math.abs(el.width || 0)} height={Math.abs(el.height || 0)} stroke={el.color} strokeWidth={el.strokeWidth} fill={el.filled ? el.color + '4D' : 'rgba(0,0,0,0.05)'} />;
+            case 'blur': return (() => { const bx = el.x + Math.min(0, el.width || 0), by = el.y + Math.min(0, el.height || 0), bw = Math.abs(el.width || 0), bh = Math.abs(el.height || 0); return <PixelatedBlur image={image} x={bx} y={by} width={bw} height={bh} pixelSize={12} commonProps={{...commonProps, x: bx, y: by}} />; })();
+            case 'circle': return <Ellipse {...commonProps} x={el.x + Math.min(0, el.width || 0)} y={el.y + Math.min(0, el.height || 0)} radiusX={Math.abs(el.width || 0) / 2} radiusY={Math.abs(el.height || 0) / 2} stroke={el.color} strokeWidth={el.strokeWidth} fill={el.filled ? el.color + '4D' : 'rgba(0,0,0,0.05)'} offsetX={-Math.abs(el.width || 0) / 2} offsetY={-Math.abs(el.height || 0) / 2} />;
             case 'text': return <Text {...commonProps} key={`${el.id}-${el.fontFamily}-${el.fontSize}-${loadedFonts.includes(el.fontFamily || 'Inter')}`} text={transformText(el.text || '', el.textCase)} fontSize={el.fontSize || 24} fontFamily={el.fontFamily || 'Inter'} fontStyle="bold" fill={el.color} stroke={el.strokeColor || el.color} strokeWidth={el.strokeWidth || 0} shadowColor={el.shadowColor} shadowBlur={el.shadowBlur} shadowOffsetX={el.shadowOffset} shadowOffsetY={el.shadowOffset} letterSpacing={el.letterSpacing} lineHeight={el.lineHeight} align={el.align} />;
             case 'image': return <ImageElement src={el.imageSrc || ''} commonProps={commonProps} width={el.width} height={el.height} />;
             default: return null;

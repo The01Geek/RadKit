@@ -91,27 +91,28 @@ Uses `OffscreenCanvas` in the service worker context:
 
 ## Screen / Window Capture (`captureDesktopMedia`)
 
-Captures the entire screen, a specific application window, or a browser tab using Chrome's `desktopCapture` API. This is the only mode that can capture content outside the browser.
+Captures the entire screen, a specific application window, or a browser tab using the browser's native `getDisplayMedia` API. This is the only mode that can capture content outside the browser.
 
 - **Triggered by**: Popup "Screen / Window" button, or `Alt+D` keyboard shortcut
-- **Permissions**: Requires `desktopCapture` and `offscreen` manifest permissions
-- **Limitations**: Chrome-only API (no Firefox support); requires user gesture context
+- **Permissions**: No special capture permissions required (uses standard `getDisplayMedia`)
+- **Browser support**: Works in both Chrome and Microsoft Edge
 
 ### Flow
 
-1. **`chrome.desktopCapture.chooseDesktopMedia`** — opens Chrome's native media picker for screens, windows, and tabs
-2. **User selects a source** — callback receives a `streamId` (empty string if canceled)
-3. **Create offscreen document** — `chrome.offscreen.createDocument()` with `USER_MEDIA` reason, since service workers lack DOM access for `getUserMedia`
-4. **Send `streamId` to offscreen** — via `chrome.runtime.sendMessage`
-5. **Offscreen captures frame** — calls `navigator.mediaDevices.getUserMedia` with `chromeMediaSource: 'desktop'` constraint, plays the stream in a `<video>` element, draws one frame to a `<canvas>`, and returns the PNG data URL
-6. **Stop stream tracks** — all `MediaStreamTrack`s are stopped to release resources
-7. **Close offscreen document** — cleaned up after each capture
-8. **Store and open editor** — image stored under `capturedImage` in `browser.storage.local`, editor tab created
+1. **Open capture window** — `chrome.windows.create()` opens a small popup extension window (`public/capture.html`, 1024×768) which has real user activation context
+2. **`getDisplayMedia` in capture window** — the capture page immediately calls `navigator.mediaDevices.getDisplayMedia({ video: true })`, which opens the browser's native screen/window/tab picker
+3. **User selects a source** — the browser grants the media stream
+4. **Capture a frame** — the stream is played in a `<video>` element, metadata is loaded, a decoded frame is awaited via `setTimeout(300ms)` (works even when the window is backgrounded), then drawn to a `<canvas>` and exported as PNG data URL
+5. **Send result back** — `chrome.runtime.sendMessage({ type: 'desktop-capture-result', ... })` sends the data URL to the background
+6. **Background closes window** — the popup window is removed, stream tracks are stopped
+7. **Store and open editor** — image stored under `capturedImage` in `browser.storage.local`, editor tab created
 
-### Cancellation Handling
+### Why a Popup Window Instead of Offscreen Document?
 
-If the user dismisses the native picker without selecting a source, `chooseDesktopMedia` returns an empty `streamId`. This is caught as a "Selection canceled" error and handled gracefully — no editor is opened, and no error is shown to the user beyond a status message.
+`getDisplayMedia` requires user activation (a transient user gesture). In MV3, transient activation does NOT transfer through `chrome.runtime.sendMessage()`. An offscreen document receives messages without user context, so `getDisplayMedia` is rejected with `NotAllowedError`. A real popup window created via `chrome.windows.create()` has user activation from the window creation, allowing `getDisplayMedia` to work reliably.
 
-### Why Offscreen Document?
+The previous approach using `chrome.desktopCapture.chooseDesktopMedia` + `getUserMedia` with `chromeMediaSource: 'desktop'` in an offscreen document failed on both Chrome and Edge due to this same user gesture limitation.
 
-In Manifest V3, the background is a service worker with no DOM. `navigator.mediaDevices.getUserMedia` requires a document context (DOM access for `<video>` and `<canvas>` elements). The offscreen document (`public/offscreen.html`) provides this context. It is created on demand and destroyed after each capture.
+### Frame Capture Timing
+
+The capture uses `setTimeout(300ms)` instead of `requestVideoFrameCallback` to wait for a decoded frame. This is intentional: `requestVideoFrameCallback` only fires when the page is actively rendering, but when the user selects a different tab from the picker, the capture window goes to the background and the callback never fires. `setTimeout` works regardless of page visibility.
