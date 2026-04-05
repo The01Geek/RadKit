@@ -44,15 +44,21 @@ interface DrawingElement {
 
 | Tool | Element type | Interaction |
 |------|-------------|-------------|
-| Crop | N/A | Drag to define crop region, confirm/cancel buttons |
+| Crop | N/A | Drag to define crop region, confirm/cancel buttons. Flattens all layers (background + elements) before cropping. |
 | Pencil | Freehand line | Click-drag to draw, stores `points[]` |
 | Line | Straight line | Click start, drag to end |
 | Arrow | Arrow line | Like line, with arrowhead (optional start pointer) |
-| Rectangle | Rect shape | Click-drag corner-to-corner |
-| Circle | Ellipse | Click-drag to define bounding box |
-| Text | Text label | Click to place, inline input for text entry |
-| Blur | Pixelated region | Click-drag to define blur area |
+| Rectangle | Rect shape | Click-drag corner-to-corner (supports all drag directions) |
+| Circle | Ellipse | Click-drag to define bounding box (supports all drag directions) |
+| Text | Text label | Click to place, type directly on the canvas (inline editing). Double-click existing text to edit. |
+| Blur | Pixelated region | Click-drag to define blur area (supports all drag directions) |
 | Image | Inserted image | File picker, placed at click position |
+
+## Defaults
+
+- **Default color**: Red (`#ff0000`) for all drawing tools
+- **Default stroke width**: 6px for all drawing tools
+- **Default font size**: 30px for text tool
 
 ## Per-Tool Settings Persistence
 
@@ -62,7 +68,7 @@ Settings are remembered per tool via `toolSettingsRef` (a ref holding a `Record<
 
 The canvas uses `react-konva`:
 - `Stage` → `Layer` → individual shape components (`Line`, `Arrow`, `Rect`, `Ellipse`, `Text`)
-- The `PixelatedBlur` custom component renders blur regions by downscaling and upscaling a canvas crop
+- The `PixelatedBlur` custom component renders blur regions by downscaling and upscaling a canvas crop. Normalizes negative width/height for right-to-left drawing.
 - The `ImageElement` component handles inserted images
 - A `Transformer` is attached to the selected element for resize/rotate handles
 

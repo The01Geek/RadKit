@@ -43,14 +43,16 @@ export default defineBackground(() => {
     return false;
   });
 
-  // Listen for keyboard shortcut
+  // Listen for keyboard shortcuts
   chrome.commands.onCommand.addListener(async (command) => {
-    if (command === 'capture-visible') {
-      try {
+    try {
+      if (command === 'capture-visible') {
         await handleCapture('visible');
-      } catch (error) {
-        console.error('Keyboard shortcut capture failed:', error);
+      } else if (command === 'capture-desktop') {
+        await handleCapture('desktop');
       }
+    } catch (error) {
+      console.error('Keyboard shortcut capture failed:', error);
     }
   });
 
@@ -71,6 +73,9 @@ export default defineBackground(() => {
         case 'visible-delayed':
           await new Promise(resolve => setTimeout(resolve, 3000));
           imageDataUrl = await captureVisibleTab();
+          break;
+        case 'desktop':
+          imageDataUrl = await captureDesktopMedia();
           break;
         default:
           throw new Error('Unknown capture mode');
@@ -103,6 +108,34 @@ export default defineBackground(() => {
           } else {
             resolve(dataUrl);
           }
+        }
+      );
+    });
+  }
+
+  async function captureDesktopMedia(): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+      // Open a small extension window — it has user activation so getDisplayMedia works
+      chrome.windows.create(
+        {
+          url: chrome.runtime.getURL('/capture.html'),
+          type: 'popup',
+          width: 1024,
+          height: 768,
+          focused: true,
+        },
+        (win) => {
+          const listener = (message: any) => {
+            if (message.type !== 'desktop-capture-result') return;
+            browser.runtime.onMessage.removeListener(listener);
+            if (win?.id) chrome.windows.remove(win.id);
+            if (message.success) {
+              resolve(message.dataUrl);
+            } else {
+              reject(new Error(message.error || 'Capture failed'));
+            }
+          };
+          browser.runtime.onMessage.addListener(listener);
         }
       );
     });

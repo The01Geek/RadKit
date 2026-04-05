@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import './App.css';
-import { IconMonitor, IconSelection, IconFile, IconTimer } from '../editor/Icons';
+import { IconMonitor, IconSelection, IconFile, IconTimer, IconDesktop } from '../editor/Icons';
 
-type CaptureMode = 'visible' | 'selection' | 'fullpage' | 'visible-delayed';
+type CaptureMode = 'visible' | 'selection' | 'fullpage' | 'visible-delayed' | 'desktop';
 
 function App() {
     const [isCapturing, setIsCapturing] = useState(false);
@@ -84,6 +84,18 @@ function App() {
                     <div className="card-content">
                         <span className="card-label">Visible After Delay</span>
                         <span className="card-desc">3-second countdown</span>
+                    </div>
+                </button>
+
+                <button
+                    className="capture-card"
+                    onClick={() => handleCapture('desktop')}
+                    disabled={isCapturing}
+                >
+                    <span className="icon-wrap"><IconDesktop /></span>
+                    <div className="card-content">
+                        <span className="card-label">Screen / Window</span>
+                        <span className="card-desc">Capture screen or app window</span>
                     </div>
                 </button>
             </div>

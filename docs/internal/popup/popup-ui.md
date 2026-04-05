@@ -5,7 +5,7 @@ The extension popup (`entrypoints/popup/`) is a React app shown when the user cl
 ## Layout
 
 - **Header**: "RadKit" brand name with purple accent on "Kit", plus an "Alt+S" shortcut hint badge
-- **4 capture cards**: Stacked vertically, each with an icon and label/description
+- **5 capture cards**: Stacked vertically, each with an icon and label/description
 - **Status bar**: Shown during capture with a pulsing dot animation
 
 ## Capture Cards
@@ -16,6 +16,7 @@ The extension popup (`entrypoints/popup/`) is a React app shown when the user cl
 | Select Area | `selection` | `IconSelection` | "Draw a custom rectangle" |
 | Full Page | `fullpage` | `IconFile` | "Capture top to bottom" |
 | Visible After Delay | `visible-delayed` | `IconTimer` | "3-second countdown" |
+| Screen / Window | `desktop` | `IconDesktop` | "Capture screen or app window" |
 
 Each card calls `handleCapture(mode)` on click, which:
 1. Sets `isCapturing = true` and shows "Capturing..." status
@@ -40,10 +41,10 @@ Defined in `entrypoints/popup/App.css`:
 |------|---------|
 | `entrypoints/popup/index.html` | HTML shell for the popup |
 | `entrypoints/popup/main.tsx` | React entry point |
-| `entrypoints/popup/App.tsx` | Main component (~90 lines) |
+| `entrypoints/popup/App.tsx` | Main component (~100 lines) |
 | `entrypoints/popup/App.css` | All popup styles |
 | `entrypoints/popup/style.css` | Minimal global resets |
 
 ## Icons
 
-The popup imports icon components from `entrypoints/editor/Icons.tsx` (`IconMonitor`, `IconSelection`, `IconFile`, `IconTimer`). These are shared with the editor to maintain visual consistency.
+The popup imports icon components from `entrypoints/editor/Icons.tsx` (`IconMonitor`, `IconSelection`, `IconFile`, `IconTimer`, `IconDesktop`). These are shared with the editor to maintain visual consistency.

@@ -22,6 +22,12 @@ export default defineConfig({
         },
         description: 'Capture visible viewport',
       },
+      'capture-desktop': {
+        suggested_key: {
+          default: 'Alt+D',
+        },
+        description: 'Capture screen or window',
+      },
     },
   },
 });

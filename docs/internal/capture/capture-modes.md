@@ -88,3 +88,31 @@ Uses `OffscreenCanvas` in the service worker context:
 - **50-iteration limit** — safety valve for infinite-scroll pages
 - **Lazy-loaded content** — 800ms settle time may not be enough for slow connections
 - **Dynamic content** — content that changes between scrolls can cause visual seams
+
+## Screen / Window Capture (`captureDesktopMedia`)
+
+Captures the entire screen, a specific application window, or a browser tab using the browser's native `getDisplayMedia` API. This is the only mode that can capture content outside the browser.
+
+- **Triggered by**: Popup "Screen / Window" button, or `Alt+D` keyboard shortcut
+- **Permissions**: No special capture permissions required (uses standard `getDisplayMedia`)
+- **Browser support**: Works in both Chrome and Microsoft Edge
+
+### Flow
+
+1. **Open capture window** — `chrome.windows.create()` opens a small popup extension window (`public/capture.html`, 1024×768) which has real user activation context
+2. **`getDisplayMedia` in capture window** — the capture page immediately calls `navigator.mediaDevices.getDisplayMedia({ video: true })`, which opens the browser's native screen/window/tab picker
+3. **User selects a source** — the browser grants the media stream
+4. **Capture a frame** — the stream is played in a `<video>` element, metadata is loaded, a decoded frame is awaited via `setTimeout(300ms)` (works even when the window is backgrounded), then drawn to a `<canvas>` and exported as PNG data URL
+5. **Send result back** — `chrome.runtime.sendMessage({ type: 'desktop-capture-result', ... })` sends the data URL to the background
+6. **Background closes window** — the popup window is removed, stream tracks are stopped
+7. **Store and open editor** — image stored under `capturedImage` in `browser.storage.local`, editor tab created
+
+### Why a Popup Window Instead of Offscreen Document?
+
+`getDisplayMedia` requires user activation (a transient user gesture). In MV3, transient activation does NOT transfer through `chrome.runtime.sendMessage()`. An offscreen document receives messages without user context, so `getDisplayMedia` is rejected with `NotAllowedError`. A real popup window created via `chrome.windows.create()` has user activation from the window creation, allowing `getDisplayMedia` to work reliably.
+
+The previous approach using `chrome.desktopCapture.chooseDesktopMedia` + `getUserMedia` with `chromeMediaSource: 'desktop'` in an offscreen document failed on both Chrome and Edge due to this same user gesture limitation.
+
+### Frame Capture Timing
+
+The capture uses `setTimeout(300ms)` instead of `requestVideoFrameCallback` to wait for a decoded frame. This is intentional: `requestVideoFrameCallback` only fires when the page is actively rendering, but when the user selects a different tab from the picker, the capture window goes to the background and the callback never fires. `setTimeout` works regardless of page visibility.

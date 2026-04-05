@@ -11,6 +11,7 @@ RadKit uses Chrome's messaging APIs to coordinate between the popup, background 
 | `{ type: 'capture', mode: 'visible' }` | Capture visible viewport | `{ success: true }` or `{ success: false, error: string }` |
 | `{ type: 'capture', mode: 'selection' }` | Start area selection flow | Same |
 | `{ type: 'capture', mode: 'fullpage' }` | Capture full scrollable page | Same |
+| `{ type: 'capture', mode: 'desktop' }` | Capture screen, window, or tab via desktop media picker | Same |
 
 Sent from `entrypoints/popup/App.tsx` via `browser.runtime.sendMessage`. The background listener in `entrypoints/background.ts` returns `true` from the listener to indicate an async response.
 
@@ -32,9 +33,21 @@ Sent via `browser.tabs.sendMessage(tabId, ...)`.
 
 Sent via `browser.runtime.sendMessage`. The background script listens for this in `waitForSelection()` with a 60-second timeout.
 
+### Background → Offscreen Document
+
+| Message | Purpose | Response |
+|---------|---------|----------|
+| `{ type: 'capture-desktop-frame', streamId: string }` | Capture a single frame from the desktop media stream | `{ success: true, dataUrl: string }` or `{ success: false, error: string }` |
+
+Sent via `chrome.runtime.sendMessage`. The offscreen document (`public/offscreen.html`) listens for this message, calls `navigator.mediaDevices.getUserMedia` with the provided `streamId`, draws one frame to a canvas, and returns the PNG data URL. The offscreen document is created on demand and destroyed after each capture.
+
 ### Keyboard Shortcut → Background
 
-The `chrome.commands.onCommand` listener in `entrypoints/background.ts` handles the `capture-visible` command (mapped to `Alt+S` in `wxt.config.ts`). This bypasses the popup entirely and directly calls `handleCapture('visible')`.
+The `chrome.commands.onCommand` listener in `entrypoints/background.ts` handles:
+- `capture-visible` (mapped to `Alt+S` in `wxt.config.ts`) — calls `handleCapture('visible')`
+- `capture-desktop` (mapped to `Alt+D` in `wxt.config.ts`) — calls `handleCapture('desktop')`
+
+Both bypass the popup entirely.
 
 ## Flow: Area Selection
 
@@ -55,8 +68,28 @@ Popup                    Background                Content Script
   │                         ├─ cleanup-selection ─────►│
 ```
 
+## Flow: Desktop Capture
+
+```
+Popup                    Background                Offscreen Document
+  │                         │                          │
+  ├─ capture/desktop ──────►│                          │
+  │                         ├─ chooseDesktopMedia      │
+  │                         │   (user picks source)    │
+  │                         ├─ createDocument ─────────► (created)
+  │                         ├─ capture-desktop-frame ──►│
+  │                         │                          ├─ getUserMedia(streamId)
+  │                         │                          ├─ draw frame to canvas
+  │                         │◄── { dataUrl } ──────────┤
+  │                         ├─ store to storage.local  │
+  │                         ├─ open editor.html        │
+  │                         ├─ closeDocument ──────────► (destroyed)
+  │◄── { success: true } ──┤                          │
+```
+
 ## Error Handling
 
 - If the content script can't be reached (`start-selection` fails), the background throws: *"Could not connect to the page. Please refresh and try again."*
 - If `captureVisibleTab` fails on restricted pages (chrome://, edge://), the error is rewritten to: *"Browser restriction: Cannot capture internal browser pages."*
 - Selection has a 60-second timeout. After that, `waitForSelection` rejects with *"Selection timeout"*.
+- If the user dismisses the desktop media picker without selecting a source, `chooseDesktopMedia` returns an empty `streamId`, which is caught as *"Selection canceled"*.
