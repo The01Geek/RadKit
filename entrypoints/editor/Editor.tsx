@@ -665,8 +665,9 @@ function Editor() {
         setIsDrawing(false);
 
         // Normalize: ensure x,y is top-left and width/height are positive
+        // Skip normalization for line/arrow — their points define direction
         let finalElement = currentElement;
-        if (currentElement.type !== 'pencil' && currentElement.width != null && currentElement.height != null) {
+        if (currentElement.type !== 'pencil' && currentElement.type !== 'line' && currentElement.type !== 'arrow' && currentElement.width != null && currentElement.height != null) {
             const w = currentElement.width;
             const h = currentElement.height;
             finalElement = {
@@ -790,12 +791,12 @@ function Editor() {
         addToHistory(newElements);
     };
 
-    const deleteElement = (id: string) => {
+    const deleteElement = useCallback((id: string) => {
         const newElements = elements.filter(el => el.id !== id);
         setElements(newElements);
         addToHistory(newElements);
         if (selectedId === id) setSelectedId(null);
-    };
+    }, [elements, selectedId, addToHistory]);
 
     const toggleVisibility = (id: string) => {
         setElements(elements.map(el => el.id === id ? { ...el, visible: !el.visible } : el));
@@ -1011,6 +1012,12 @@ function Editor() {
                 redo();
             }
 
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
+                e.preventDefault();
+                deleteElement(selectedId);
+                return;
+            }
+
             if (mod || e.altKey) return;
             const matched = toolShortcuts[e.key.toLowerCase()];
             if (matched) {
@@ -1025,7 +1032,7 @@ function Editor() {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [undo, redo]);
+    }, [undo, redo, selectedId, deleteElement]);
 
     const handleDownload = (format: 'png' | 'jpeg') => {
         const stage = stageRef.current;
