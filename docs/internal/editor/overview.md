@@ -46,8 +46,8 @@ interface DrawingElement {
 |------|-------------|-------------|
 | Crop | N/A | Drag to define crop region, confirm/cancel buttons. Flattens all layers (background + elements) before cropping. |
 | Pencil | Freehand line | Click-drag to draw, stores `points[]` |
-| Line | Straight line | Click start, drag to end |
-| Arrow | Arrow line | Like line, with arrowhead (optional start pointer) |
+| Line | Straight line | Click start, drag to end. Direction is preserved when drawing right-to-left. |
+| Arrow | Arrow line | Like line, with arrowhead (optional start pointer). Direction is preserved when drawing right-to-left. |
 | Rectangle | Rect shape | Click-drag corner-to-corner (supports all drag directions) |
 | Circle | Ellipse | Click-drag to define bounding box (supports all drag directions) |
 | Text | Text label | Click to place, type directly on the canvas (inline editing). Double-click existing text to edit. |
@@ -69,8 +69,18 @@ Settings are remembered per tool via `toolSettingsRef` (a ref holding a `Record<
 The canvas uses `react-konva`:
 - `Stage` → `Layer` → individual shape components (`Line`, `Arrow`, `Rect`, `Ellipse`, `Text`)
 - The `PixelatedBlur` custom component renders blur regions by downscaling and upscaling a canvas crop. Normalizes negative width/height for right-to-left drawing.
+- On mouse-up, shape elements (rectangle, circle, blur) are normalized so `x,y` is the top-left corner and `width`/`height` are positive. Line and arrow elements skip this normalization to preserve their directional points.
 - The `ImageElement` component handles inserted images
 - A `Transformer` is attached to the selected element for resize/rotate handles
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl/⌘ + Z` | Undo |
+| `Ctrl/⌘ + Shift + Z` | Redo |
+| `Delete` / `Backspace` | Delete the selected element |
+| Tool letter keys | Switch to tool (e.g., `r` for rectangle, `a` for arrow) |
 
 ## Export
 
