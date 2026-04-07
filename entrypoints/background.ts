@@ -154,17 +154,41 @@ export default defineBackground(() => {
           focused: true,
         },
         (win) => {
-          const listener = (message: any) => {
+          if (chrome.runtime.lastError || !win) {
+            reject(new Error(chrome.runtime.lastError?.message || 'Failed to open recording window'));
+            return;
+          }
+
+          let settled = false;
+
+          const cleanup = () => {
+            browser.runtime.onMessage.removeListener(messageListener);
+            chrome.windows.onRemoved.removeListener(windowListener);
+          };
+
+          const messageListener = (message: any) => {
             if (message.type !== 'recording-result') return;
-            browser.runtime.onMessage.removeListener(listener);
-            if (win?.id) chrome.windows.remove(win.id);
+            if (settled) return;
+            settled = true;
+            cleanup();
+            // Delay window close briefly to let the download start
+            setTimeout(() => { if (win?.id) chrome.windows.remove(win.id); }, 500);
             if (message.success) {
               resolve({ success: true });
             } else {
               reject(new Error(message.error || 'Recording failed'));
             }
           };
-          browser.runtime.onMessage.addListener(listener);
+
+          const windowListener = (closedWindowId: number) => {
+            if (closedWindowId !== win?.id || settled) return;
+            settled = true;
+            cleanup();
+            reject(new Error('Recording window was closed'));
+          };
+
+          browser.runtime.onMessage.addListener(messageListener);
+          chrome.windows.onRemoved.addListener(windowListener);
         }
       );
     });

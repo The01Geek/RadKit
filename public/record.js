@@ -5,6 +5,7 @@
   var timerInterval = null;
   var durationTimeout = null;
   var elapsed = 0;
+  var finished = false;
 
   var startBtn = document.getElementById('startBtn');
   var stopBtn = document.getElementById('stopBtn');
@@ -26,6 +27,9 @@
   }
 
   function finish(error) {
+    if (finished) return;
+    finished = true;
+
     clearInterval(timerInterval);
     clearTimeout(durationTimeout);
     timerInterval = null;
@@ -42,18 +46,25 @@
       return;
     }
 
-    statusEl.textContent = 'Preparing download…';
+    statusEl.textContent = 'Preparing download\u2026';
 
     var blob = new Blob(chunks, { type: 'video/webm' });
+    chunks = [];
     var url = URL.createObjectURL(blob);
     var timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     var filename = 'radkit-recording-' + timestamp + '.webm';
 
-    // Use chrome.downloads if available, otherwise fallback to anchor click
     if (chrome.downloads && chrome.downloads.download) {
       chrome.downloads.download({ url: url, filename: filename, saveAs: true }, function () {
-        statusEl.textContent = 'Download started!';
-        chrome.runtime.sendMessage({ type: 'recording-result', success: true });
+        if (chrome.runtime.lastError) {
+          URL.revokeObjectURL(url);
+          statusEl.textContent = 'Download failed: ' + chrome.runtime.lastError.message;
+          chrome.runtime.sendMessage({ type: 'recording-result', success: false, error: 'Download failed: ' + chrome.runtime.lastError.message });
+        } else {
+          URL.revokeObjectURL(url);
+          statusEl.textContent = 'Download started!';
+          chrome.runtime.sendMessage({ type: 'recording-result', success: true });
+        }
       });
     } else {
       var a = document.createElement('a');
@@ -62,6 +73,7 @@
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
       statusEl.textContent = 'Download started!';
       chrome.runtime.sendMessage({ type: 'recording-result', success: true });
     }
@@ -78,7 +90,7 @@
     var frameRate = parseInt(framerateSelect.value, 10);
 
     startBtn.disabled = true;
-    statusEl.textContent = 'Requesting screen access…';
+    statusEl.textContent = 'Requesting screen access\u2026';
 
     try {
       stream = await navigator.mediaDevices.getDisplayMedia({
@@ -96,9 +108,12 @@
     }
 
     // If the user stops sharing via the browser's built-in "Stop sharing" button
-    stream.getVideoTracks()[0].addEventListener('ended', function () {
-      stopRecording();
-    });
+    var videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.addEventListener('ended', function () {
+        stopRecording();
+      });
+    }
 
     // Determine supported mimeType
     var mimeType = 'video/webm;codecs=vp9';
@@ -110,7 +125,13 @@
     }
 
     chunks = [];
-    recorder = new MediaRecorder(stream, { mimeType: mimeType });
+
+    try {
+      recorder = new MediaRecorder(stream, { mimeType: mimeType });
+    } catch (err) {
+      finish('Could not start recording: ' + err.message);
+      return;
+    }
 
     recorder.ondataavailable = function (e) {
       if (e.data && e.data.size > 0) {
@@ -133,7 +154,11 @@
     stopBtn.style.display = '';
     optionsEl.style.display = 'none';
     timerEl.classList.add('recording-active');
-    statusEl.innerHTML = '<span class="pulse"></span>Recording…';
+    statusEl.textContent = '';
+    var dot = document.createElement('span');
+    dot.className = 'pulse';
+    statusEl.appendChild(dot);
+    statusEl.appendChild(document.createTextNode('Recording\u2026'));
 
     elapsed = 0;
     timerEl.textContent = formatTime(0);

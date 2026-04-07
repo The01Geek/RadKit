@@ -19,7 +19,7 @@ function App() {
             });
 
             if (response?.success) {
-                setStatus('Opening editor...');
+                setStatus(mode === 'recording' ? 'Recording complete!' : 'Opening editor...');
                 setTimeout(() => window.close(), 500);
             } else {
                 setStatus(response?.error || 'Capture failed');
