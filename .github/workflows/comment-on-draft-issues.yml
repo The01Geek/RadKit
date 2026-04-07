@@ -50,7 +50,8 @@ jobs:
 
       - name: Check project status and comment if Draft
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           ORG="${{ github.repository_owner }}"
@@ -222,7 +223,7 @@ jobs:
           if [ "$ISSUE_STATUS" = "$STATUS_DRAFT" ]; then
             echo "✅ Status is $STATUS_DRAFT — posting comment..."
             COMMENT_BODY="@claude /implement $ISSUE_NUMBER"
-            gh issue comment "$ISSUE_NUMBER" \
+            GH_TOKEN="$APP_TOKEN" gh issue comment "$ISSUE_NUMBER" \
               --repo "$ORG/$REPO_NAME" \
               --body "$COMMENT_BODY"
             echo "✅ Comment posted on issue #$ISSUE_NUMBER"
