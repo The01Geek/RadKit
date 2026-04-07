@@ -23,6 +23,16 @@ RadKit is a browser extension built with the [WXT](https://wxt.dev/) framework, 
 │  entrypoints/editor/                                 │
 │  Full-page React app (editor.html) with Konva canvas │
 │  for annotating captured screenshots                 │
+├──────────────────────────────────────────────────────┤
+│  Options Page                                        │
+│  entrypoints/options/                                │
+│  React settings page for export format, quality,     │
+│  keyboard shortcut reference, and S3 upload config   │
+├──────────────────────────────────────────────────────┤
+│  Shared Library                                      │
+│  entrypoints/lib/                                    │
+│  Settings module (settings.ts) — types, defaults,    │
+│  load/save via browser.storage.sync                  │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -39,7 +49,7 @@ RadKit is a browser extension built with the [WXT](https://wxt.dev/) framework, 
 | Technology | Purpose | Entry point |
 |-----------|---------|-------------|
 | WXT | Extension framework, dev server, build tooling | `wxt.config.ts` |
-| React 19 | UI for popup and editor | `entrypoints/popup/`, `entrypoints/editor/` |
+| React 19 | UI for popup, editor, and options page | `entrypoints/popup/`, `entrypoints/editor/`, `entrypoints/options/` |
 | Konva / react-konva | 2D canvas for the annotation editor | `entrypoints/editor/Editor.tsx` |
 | TypeScript | Type safety across the codebase | `tsconfig.json` |
 
@@ -57,7 +67,7 @@ Note: Screen/window capture uses `getDisplayMedia` in a popup extension window (
 
 ## Privacy Model
 
-RadKit makes **zero external network requests**. All fonts are bundled locally (`assets/fonts/`), all processing happens in-browser, and no analytics or telemetry is included. This is a core design constraint, not a feature toggle.
+RadKit makes **zero external network requests by default**. All fonts are bundled locally (`assets/fonts/`), all processing happens in-browser, and no analytics or telemetry is included. The options page exposes an opt-in S3-compatible upload feature; when disabled (the default), no network requests are made. When enabled, upload requests go only to the user-configured endpoint.
 
 ## File Structure
 
@@ -71,6 +81,13 @@ entrypoints/
 │   ├── main.tsx
 │   ├── App.tsx
 │   └── App.css
+├── lib/                 # Shared modules
+│   └── settings.ts      # Settings types, defaults, load/save (browser.storage.sync)
+├── options/             # Extension options page
+│   ├── index.html
+│   ├── main.tsx
+│   ├── Options.tsx      # Settings UI (format, quality, shortcuts, S3)
+│   └── options.css
 └── editor/              # Annotation editor
     ├── index.html
     ├── main.tsx

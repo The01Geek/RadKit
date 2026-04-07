@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useLayoutEffect } from
 import { Stage, Layer, Image as KonvaImage, Line, Arrow, Rect, Ellipse, Text, Transformer } from 'react-konva';
 import Konva from 'konva';
 import './editor.css';
+import { loadSettings, type ExportFormat } from '../lib/settings';
 import {
     IconUndo, IconRedo, IconCopy, IconSave, IconDownload,
     IconCrop, IconPencil, IconLine, IconArrow, IconSquare,
@@ -203,6 +204,9 @@ function Editor() {
     const [zoom, setZoom] = useState(0.5); // Start with 0.5 to ensure visibility
     const [elementCounter, setElementCounter] = useState(1);
 
+    const [exportFormat, setExportFormat] = useState<ExportFormat>('png');
+    const [exportQuality, setExportQuality] = useState(0.9);
+
     const [cropRect, setCropRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
     const [isCropping, setIsCropping] = useState(false);
     const [redrawCounter, setRedrawCounter] = useState(0);
@@ -314,6 +318,13 @@ function Editor() {
             if (settings.textCase !== undefined) setTextCase(settings.textCase as any);
         }
     };
+
+    useEffect(() => {
+        loadSettings().then((s) => {
+            setExportFormat(s.exportFormat);
+            setExportQuality(s.exportQuality);
+        });
+    }, []);
 
     useEffect(() => {
         const loadImage = () => {
@@ -1034,14 +1045,16 @@ function Editor() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [undo, redo, selectedId, deleteElement]);
 
-    const handleDownload = (format: 'png' | 'jpeg') => {
+    const handleDownload = (format?: ExportFormat) => {
         const stage = stageRef.current;
         if (!stage) return;
+        const fmt = format ?? exportFormat;
+        const quality = exportQuality;
         setSelectedId(null);
         setTimeout(() => {
             const link = document.createElement('a');
-            link.download = `screenshot-${Date.now()}.${format}`;
-            link.href = stage.toDataURL({ mimeType: `image/${format}`, quality: 0.9 });
+            link.download = `screenshot-${Date.now()}.${fmt}`;
+            link.href = stage.toDataURL({ mimeType: `image/${fmt}`, quality });
             link.click();
         }, 100);
     };
@@ -1279,7 +1292,7 @@ function Editor() {
                     </div>
                     <div className="header-divider"></div>
                     <button onClick={handleCopy} title="Copy Content"><IconCopy /></button>
-                    <button className="btn-primary" onClick={() => handleDownload('png')}>Download</button>
+                    <button className="btn-primary" onClick={() => handleDownload()}>Download</button>
                     <button onClick={() => setSidebarOpen(!sidebarOpen)} title="Layers & Properties" className={sidebarOpen ? 'active' : ''}><IconLayers /></button>
                 </div>
             </header>

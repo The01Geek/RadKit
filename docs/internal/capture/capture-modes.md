@@ -4,11 +4,11 @@ RadKit supports four capture modes, all implemented in `entrypoints/background.t
 
 ## Visible Viewport (`captureVisibleTab`)
 
-The simplest mode. Calls `chrome.tabs.captureVisibleTab({ format: 'png' })` and returns the data URL directly.
+The simplest mode. Loads user settings via `loadSettings()` and calls `chrome.tabs.captureVisibleTab({ format, quality })` with the configured export format and quality. If the user has selected `webp`, the capture falls back to `png` since `captureVisibleTab` does not support WebP.
 
 - **Triggered by**: Popup "Visible Viewport" button, or `Alt+S` keyboard shortcut
-- **Limitations**: Cannot capture chrome://, edge://, or other restricted pages
-- **Code**: `captureVisibleTab()` function (~15 lines)
+- **Limitations**: Cannot capture chrome://, edge://, or other restricted pages; `webp` format not supported by capture API (falls back to `png`)
+- **Code**: `captureVisibleTab()` function in `background.ts`
 
 ## Area Selection (`captureWithSelection`)
 
