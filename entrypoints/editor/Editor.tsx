@@ -8,8 +8,10 @@ import {
     IconCircle, IconType, IconBlur, IconTrash, IconEye,
     IconEyeOff, IconPlus, IconMinus, IconRotateCcw, IconCheck, IconClose,
     IconAlert, IconAlignLeft, IconAlignCenter, IconAlignRight, IconCase,
-    IconBookmark, IconLayers, IconSettings, IconRefresh, IconImage
+    IconBookmark, IconLayers, IconSettings, IconRefresh, IconImage, IconShare
 } from './Icons';
+import { loadS3Config, isConfigured, toS3Config, type StoredS3Config } from '../../lib/storage';
+import { uploadToS3 } from '../../lib/s3';
 
 type Tool = 'crop' | 'pencil' | 'line' | 'arrow' | 'rectangle' | 'circle' | 'text' | 'blur' | 'image';
 
@@ -214,6 +216,8 @@ function Editor() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [presetNameInput, setPresetNameInput] = useState('');
     const [toasts, setToasts] = useState<Toast[]>([]);
+    const [s3Config, setS3Config] = useState<StoredS3Config | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
 
     const templatesRef = useRef<HTMLDivElement>(null);
 
@@ -373,6 +377,11 @@ function Editor() {
         };
         // Increased delay to 1000ms for stable loading of massive full-page data urls
         setTimeout(loadImage, 1000);
+    }, []);
+
+    // Load S3 config for Share button
+    useEffect(() => {
+        loadS3Config().then(setS3Config);
     }, []);
 
     // Proactive Font Loading
@@ -1059,6 +1068,30 @@ function Editor() {
         }, 100);
     };
 
+    const handleShare = async () => {
+        if (!s3Config || !isConfigured(s3Config)) {
+            showToast('Configure S3 settings in the extension options to share.', 'error');
+            return;
+        }
+        const stage = stageRef.current;
+        if (!stage) return;
+        setSelectedId(null);
+        setIsUploading(true);
+        showToast('Uploading...', 'info');
+        setTimeout(async () => {
+            try {
+                const blob = await (await fetch(stage.toDataURL())).blob();
+                const result = await uploadToS3(toS3Config(s3Config), blob);
+                await navigator.clipboard.writeText(result.url);
+                showToast('Uploaded! Link copied to clipboard.', 'success');
+            } catch (err) {
+                showToast(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+            } finally {
+                setIsUploading(false);
+            }
+        }, 100);
+    };
+
     const applyCrop = () => {
         if (!cropRect || !image || !stageRef.current) return;
         const x = cropRect.width < 0 ? cropRect.x + cropRect.width : cropRect.x;
@@ -1279,6 +1312,13 @@ function Editor() {
                     </div>
                     <div className="header-divider"></div>
                     <button onClick={handleCopy} title="Copy Content"><IconCopy /></button>
+                    <button
+                        onClick={handleShare}
+                        disabled={isUploading || !s3Config || !isConfigured(s3Config)}
+                        title={s3Config && isConfigured(s3Config) ? 'Share — upload to S3 and copy link' : 'Configure S3 in extension options to enable sharing'}
+                    >
+                        <IconShare />
+                    </button>
                     <button className="btn-primary" onClick={() => handleDownload('png')}>Download</button>
                     <button onClick={() => setSidebarOpen(!sidebarOpen)} title="Layers & Properties" className={sidebarOpen ? 'active' : ''}><IconLayers /></button>
                 </div>
