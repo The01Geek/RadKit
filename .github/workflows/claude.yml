@@ -88,6 +88,7 @@ jobs:
             Edit,
             Glob,
             Grep,
+            LS,
             Skill,
             Agent,
             TodoWrite,
@@ -104,6 +105,7 @@ jobs:
             Bash(git checkout:*),
             Bash(git branch:*),
             Bash(git stash:*),
+            Bash(git rm:*),
             Bash(gh pr create:*),
             Bash(gh pr edit:*),
             Bash(gh pr comment:*),
@@ -111,12 +113,18 @@ jobs:
             Bash(gh pr view:*),
             Bash(gh pr review:*),
             Bash(gh pr ready:*),
+            Bash(gh issue view:*),
+            Bash(gh issue comment:*),
+            Bash(gh issue list:*),
+            Bash(gh api:*),
+            Bash(yq:*),
             Bash(npm install:*),
             Bash(npm run build:*),
             Bash(npm run lint:*),
             Bash(npm test:*),
             Bash(npx vitest:*),
-            Bash(npx eslint:*)"
+            Bash(npx eslint:*),
+            Bash(npx tsc:*)"
           # assignee_trigger: "claude"
           # label_trigger: "claude"
 
@@ -148,6 +156,7 @@ jobs:
           GH_TOKEN: ${{ steps.pr-app-token.outputs.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
+          CLAUDE_EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
         run: |
           set -euo pipefail
 
@@ -170,24 +179,75 @@ jobs:
             exit 0
           fi
 
-          # Try to extract PR description from Claude's output (if available)
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
-          CLAUDE_RESULT='${{ steps.claude.outputs.result }}'
           PR_BODY=""
-          if [ -n "$CLAUDE_RESULT" ]; then
-            PR_BODY=$(echo "$CLAUDE_RESULT" | sed -n '/<!-- PR_BODY_START -->/,/<!-- PR_BODY_END -->/{ /<!-- PR_BODY_START -->/d; /<!-- PR_BODY_END -->/d; p; }')
+
+          # --- Strategy 1: Extract from Claude's execution log ---
+          if [ -n "${CLAUDE_EXECUTION_FILE:-}" ] && [ -f "${CLAUDE_EXECUTION_FILE}" ]; then
+            echo "::group::Strategy 1 — Parse Claude execution file"
+            echo "File: ${CLAUDE_EXECUTION_FILE} ($(wc -c < "$CLAUDE_EXECUTION_FILE") bytes)"
+
+            # Debug: show message types present in the execution log
+            echo "Message types in execution file:"
+            jq -r '[.[].type] | group_by(.) | map("\(.[0]): \(length)") | .[]' "$CLAUDE_EXECUTION_FILE" 2>/dev/null || echo "(jq parse failed)"
+
+            # Try to extract the final result text
+            # The SDK result message may store text in .result or .content
+            CLAUDE_RESPONSE=$(jq -r '
+              [.[] | select(.type == "result" and .subtype == "success")]
+              | last
+              | (.result // .content // empty)
+            ' "$CLAUDE_EXECUTION_FILE" 2>/dev/null || true)
+
+            if [ -n "$CLAUDE_RESPONSE" ]; then
+              echo "Extracted Claude result text (${#CLAUDE_RESPONSE} chars)"
+
+              # Check for PR_BODY markers (from /pr-description skill)
+              MARKED_BODY=$(echo "$CLAUDE_RESPONSE" | sed -n '/<!-- PR_BODY_START -->/,/<!-- PR_BODY_END -->/{ /<!-- PR_BODY_START -->/d; /<!-- PR_BODY_END -->/d; p; }')
+              if [ -n "$MARKED_BODY" ]; then
+                echo "Found PR_BODY markers in Claude response"
+                PR_BODY="$MARKED_BODY"
+              fi
+            else
+              echo "No .result/.content in final result message"
+              # Debug: dump the last result message structure (keys only)
+              jq '[.[] | select(.type == "result")] | last | keys' "$CLAUDE_EXECUTION_FILE" 2>/dev/null || true
+            fi
+            echo "::endgroup::"
+          else
+            echo "No execution file available (CLAUDE_EXECUTION_FILE='${CLAUDE_EXECUTION_FILE:-unset}')"
           fi
 
-          # Fallback: invoke /pr-description skill via Claude CLI
+          # --- Strategy 2: Generate from issue context + git diff ---
           if [ -z "$PR_BODY" ]; then
-            echo "Claude output missing PR_BODY markers, invoking /pr-description skill"
-            PR_DESC_OUTPUT=$(ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" claude -p "/pr-description ${ISSUE_NUMBER}" 2>/dev/null || true)
-            PR_BODY=$(echo "$PR_DESC_OUTPUT" | sed -n '/<!-- PR_BODY_START -->/,/<!-- PR_BODY_END -->/{ /<!-- PR_BODY_START -->/d; /<!-- PR_BODY_END -->/d; p; }')
-          fi
+            echo "::group::Strategy 2 — Generate from git context"
 
-          # Ultimate fallback
-          if [ -z "$PR_BODY" ]; then
-            PR_BODY="Resolves #${ISSUE_NUMBER}"
+            ISSUE_BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body' 2>/dev/null || echo "")
+            echo "Issue body: ${#ISSUE_BODY} chars"
+
+            COMMITS=$(gh api "repos/${{ github.repository }}/compare/${DEFAULT_BRANCH}...${BRANCH}" \
+              --jq '[.commits[].commit.message] | map("- " + split("\n")[0]) | join("\n")' 2>/dev/null || echo "")
+            echo "Commits: $(echo "$COMMITS" | grep -c '^-' || echo 0)"
+
+            FILES_CHANGED=$(gh api "repos/${{ github.repository }}/compare/${DEFAULT_BRANCH}...${BRANCH}" \
+              --jq '[.files[].filename] | map("- `" + . + "`") | join("\n")' 2>/dev/null || echo "")
+            echo "Files changed: $(echo "$FILES_CHANGED" | grep -c '^-' || echo 0)"
+
+            PR_BODY="## Summary
+          Implementation of #${ISSUE_NUMBER}: ${ISSUE_TITLE}
+
+          ## Changes
+          ${COMMITS:-_No commit details available_}
+
+          ## Files Changed
+          ${FILES_CHANGED:-_No file details available_}
+
+          ---
+          Resolves #${ISSUE_NUMBER}
+
+          Generated with [Claude Code](https://claude.ai/code) via \`/implement\`"
+
+            echo "::endgroup::"
           fi
 
           # Create the PR and mark it ready for review
@@ -197,5 +257,5 @@ jobs:
             --title "feat: ${ISSUE_TITLE}" \
             --body "$PR_BODY"
 
-          gh pr ready "$BRANCH"
+          gh pr ready "$BRANCH" 2>/dev/null || true
           echo "PR created and marked ready for review"
