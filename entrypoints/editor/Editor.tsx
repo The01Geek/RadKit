@@ -362,9 +362,14 @@ function Editor() {
             const screenshotId = params.get('screenshotId');
 
             if (screenshotId) {
-                console.log(`Editor: Loading from history, screenshotId=${screenshotId}`);
+                const id = Number(screenshotId);
+                if (!Number.isFinite(id) || id < 1) {
+                    setError('Invalid screenshot ID.');
+                    return;
+                }
+                console.log(`Editor: Loading from history, screenshotId=${id}`);
                 try {
-                    const dataUrl = await HistoryStore.getFullImage(Number(screenshotId));
+                    const dataUrl = await HistoryStore.getFullImage(id);
                     if (dataUrl) {
                         // Also load presets from storage
                         (window as any).chrome.storage.local.get(['stylePresets'], (result: { stylePresets?: Preset[] }) => {

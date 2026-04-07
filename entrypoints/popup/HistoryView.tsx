@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { HistoryStore, ScreenshotRecord } from '../../utils/historyStore';
 import { IconSearch, IconTrash, IconExternalLink, IconCopy, IconTag } from '../editor/Icons';
 
@@ -27,6 +27,8 @@ function relativeTime(iso: string): string {
 export default function HistoryView() {
   const [records, setRecords] = useState<ScreenshotRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [statusMsg, setStatusMsg] = useState('');
   const [searchText, setSearchText] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -35,8 +37,14 @@ export default function HistoryView() {
   const [showFilters, setShowFilters] = useState(false);
   const debouncedSearch = useDebounce(searchText, 300);
 
+  const showStatus = (msg: string) => {
+    setStatusMsg(msg);
+    setTimeout(() => setStatusMsg(''), 2000);
+  };
+
   const loadRecords = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       let results: ScreenshotRecord[];
       if (debouncedSearch || dateFrom || dateTo) {
@@ -51,6 +59,7 @@ export default function HistoryView() {
       setRecords(results);
     } catch (e) {
       console.error('Failed to load history:', e);
+      setError('Failed to load history. Try reopening the popup.');
     }
     setLoading(false);
   }, [debouncedSearch, dateFrom, dateTo]);
@@ -61,8 +70,13 @@ export default function HistoryView() {
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this screenshot? This cannot be undone.')) return;
-    await HistoryStore.delete(id);
-    setRecords((prev) => prev.filter((r) => r.id !== id));
+    try {
+      await HistoryStore.delete(id);
+      setRecords((prev) => prev.filter((r) => r.id !== id));
+    } catch (e) {
+      console.error('Delete failed:', e);
+      showStatus('Failed to delete');
+    }
   };
 
   const handleOpenEditor = async (id: number) => {
@@ -73,14 +87,19 @@ export default function HistoryView() {
   const handleCopyToClipboard = async (id: number) => {
     try {
       const dataUrl = await HistoryStore.getFullImage(id);
-      if (!dataUrl) return;
+      if (!dataUrl) {
+        showStatus('Screenshot data not found');
+        return;
+      }
       const response = await fetch(dataUrl);
       const blob = await response.blob();
       await navigator.clipboard.write([
         new ClipboardItem({ [blob.type]: blob }),
       ]);
+      showStatus('Copied!');
     } catch (e) {
       console.error('Copy failed:', e);
+      showStatus('Copy failed');
     }
   };
 
@@ -89,10 +108,15 @@ export default function HistoryView() {
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
-    await HistoryStore.updateTags(id, tags);
-    setRecords((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, tags } : r))
-    );
+    try {
+      await HistoryStore.updateTags(id, tags);
+      setRecords((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, tags } : r))
+      );
+    } catch (e) {
+      console.error('Tag save failed:', e);
+      showStatus('Failed to save tags');
+    }
     setEditingTagsId(null);
     setTagInput('');
   };
@@ -111,6 +135,15 @@ export default function HistoryView() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="history-empty">
+        <div className="history-empty-title">Something went wrong</div>
+        <div className="history-empty-desc">{error}</div>
+      </div>
+    );
+  }
+
   if (records.length === 0 && !searchText && !dateFrom && !dateTo) {
     return (
       <div className="history-empty">
@@ -125,6 +158,8 @@ export default function HistoryView() {
 
   return (
     <div className="history-view">
+      {statusMsg && <div className="history-status">{statusMsg}</div>}
+
       <div className="history-search-bar">
         <div className="history-search-input-wrap">
           <IconSearch />
