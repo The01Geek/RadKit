@@ -61,6 +61,11 @@
       type: 'recording-complete',
       success: success,
       error: error || undefined,
+    }, function () {
+      if (chrome.runtime.lastError) {
+        console.error('Failed to notify background:', chrome.runtime.lastError.message);
+        setStatus('Recording saved. You may close this window.', false);
+      }
     });
   }
 
@@ -86,11 +91,20 @@
       } else {
         setStatus('Error: ' + err.message, true);
       }
+      sendComplete(false, 'Screen access denied');
       return;
     }
 
     // If user stops sharing via browser UI, stop the recording
-    stream.getVideoTracks()[0].addEventListener('ended', function () {
+    var videoTrack = stream.getVideoTracks()[0];
+    if (!videoTrack) {
+      cleanup();
+      recordBtn.disabled = false;
+      setStatus('No video track available', true);
+      sendComplete(false, 'No video track available');
+      return;
+    }
+    videoTrack.addEventListener('ended', function () {
       if (isRecording) stopRecording();
     });
 
@@ -99,6 +113,7 @@
       cleanup();
       recordBtn.disabled = false;
       setStatus('WebM recording is not supported in this browser', true);
+      sendComplete(false, 'WebM recording not supported');
       return;
     }
 
@@ -109,6 +124,7 @@
       cleanup();
       recordBtn.disabled = false;
       setStatus('Failed to create recorder: ' + err.message, true);
+      sendComplete(false, 'Failed to create recorder: ' + err.message);
       return;
     }
 
@@ -121,9 +137,11 @@
     };
 
     mediaRecorder.onerror = function (e) {
-      setStatus('Recording error: ' + (e.error ? e.error.message : 'unknown'), true);
+      var errorMsg = e.error ? e.error.message : 'unknown recording error';
+      setStatus('Recording error: ' + errorMsg, true);
       cleanup();
       recordBtn.disabled = false;
+      sendComplete(false, 'Recording error: ' + errorMsg);
     };
 
     mediaRecorder.start(1000); // collect data every second
@@ -171,15 +189,16 @@
     chrome.downloads.download(
       { url: blobUrl, filename: filename, saveAs: false },
       function (downloadId) {
+        var lastErr = chrome.runtime.lastError;
         // Revoke blob URL after a delay to ensure download starts
         setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 5000);
 
         cleanup();
 
-        if (chrome.runtime.lastError) {
-          setStatus('Download failed: ' + chrome.runtime.lastError.message, true);
+        if (lastErr) {
+          setStatus('Download failed: ' + lastErr.message, true);
           recordBtn.disabled = false;
-          sendComplete(false, chrome.runtime.lastError.message);
+          sendComplete(false, lastErr.message);
         } else {
           setStatus('Recording saved!');
           sendComplete(true);

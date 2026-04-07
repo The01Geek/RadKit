@@ -10,7 +10,7 @@ function App() {
 
     const handleCapture = async (mode: CaptureMode) => {
         setIsCapturing(true);
-        setStatus('Capturing...');
+        setStatus(mode === 'recording' ? 'Opening recorder...' : 'Capturing...');
 
         try {
             const response = await browser.runtime.sendMessage({

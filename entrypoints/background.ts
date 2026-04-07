@@ -155,9 +155,22 @@ export default defineBackground(() => {
           focused: true,
         },
         (win) => {
-          const listener = (message: any) => {
+          if (chrome.runtime.lastError || !win?.id) {
+            reject(new Error(chrome.runtime.lastError?.message || 'Failed to create recording window'));
+            return;
+          }
+
+          let settled = false;
+
+          const cleanupListeners = () => {
+            browser.runtime.onMessage.removeListener(messageListener);
+            chrome.windows.onRemoved.removeListener(windowClosedListener);
+          };
+
+          const messageListener = (message: any) => {
             if (message.type !== 'recording-complete') return;
-            browser.runtime.onMessage.removeListener(listener);
+            settled = true;
+            cleanupListeners();
             if (win?.id) chrome.windows.remove(win.id);
             if (message.success) {
               resolve();
@@ -165,7 +178,16 @@ export default defineBackground(() => {
               reject(new Error(message.error || 'Recording failed'));
             }
           };
-          browser.runtime.onMessage.addListener(listener);
+
+          const windowClosedListener = (closedWinId: number) => {
+            if (closedWinId !== win.id || settled) return;
+            settled = true;
+            cleanupListeners();
+            reject(new Error('Recording window was closed'));
+          };
+
+          browser.runtime.onMessage.addListener(messageListener);
+          chrome.windows.onRemoved.addListener(windowClosedListener);
         }
       );
     });
