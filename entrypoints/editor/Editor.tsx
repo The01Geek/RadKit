@@ -1202,7 +1202,7 @@ function Editor() {
                     <div className="h-divider"></div>
                     {tool !== 'blur' && tool !== 'crop' && (
                         <div className="color-tool">
-                            <input type="color" value={color} onChange={(e) => { setColor(e.target.value); setActivePresetId(null); }} className="color-input" />
+                            <input type="color" value={color} onChange={(e) => { setColor(e.target.value); setActivePresetId(null); if (selectedId) updateElementProperty(selectedId, { color: e.target.value }); }} className="color-input" />
                             <div className="color-preview" style={{ backgroundColor: color }}></div>
                         </div>
                     )}
