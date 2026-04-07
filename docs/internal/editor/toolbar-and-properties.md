@@ -1,6 +1,6 @@
 # Toolbar & Properties Panel
 
-The editor has two surfaces for configuring element styles: the **top toolbar** and the **right sidebar properties panel**. Both surfaces expose color, stroke width, opacity, and other properties, but they serve different roles and currently have an asymmetric relationship.
+The editor has two surfaces for configuring element styles: the **top toolbar** and the **right sidebar properties panel**. Both surfaces expose color, stroke width, opacity, and other properties, but they serve different roles.
 
 ## Top Toolbar
 
@@ -20,9 +20,8 @@ The toolbar color picker is an HTML5 `<input type="color">` inside `.color-tool`
 
 1. `setColor(newValue)` updates the global toolbar color state
 2. `setActivePresetId(null)` clears any active style preset
-3. The new color is used for **future** element creation only
-
-**Current limitation:** Changing the toolbar color does NOT update the currently selected element. It only affects elements created afterwards.
+3. If an element is currently selected, `updateElementProperty(selectedId, { color: newValue })` immediately applies the new color to that element
+4. The new color is also used for future element creation
 
 ### Preset Color Buttons
 
@@ -77,14 +76,14 @@ When a property is changed via the **properties panel**:
 - The toolbar state is synced to match
 
 When a property is changed via the **toolbar**:
-- Only the toolbar state variable is updated
-- The selected element is **NOT** updated (this is the current gap)
+- The toolbar state variable is updated
+- If an element is selected, it is also updated via `updateElementProperty()`
 
 ### Visual flow
 
 ```
-Toolbar color change  -->  setColor()  -->  affects FUTURE elements only
-                                            (selected element NOT updated)
+Toolbar color change  -->  setColor()  -->  affects future elements
+                      -->  updateElementProperty()  -->  updates selected element (if any)
 
 Properties panel change  -->  updateElementProperty()  -->  updates element
                                                         -->  syncs toolbar state
