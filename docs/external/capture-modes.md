@@ -1,6 +1,6 @@
 # Capture Modes
 
-RadKit offers five capture modes to handle different screenshot scenarios. Open the RadKit popup by clicking the toolbar icon to access all modes.
+RadKit offers five screenshot capture modes and one recording mode. Open the RadKit popup by clicking the toolbar icon to access all modes.
 
 ## Visible Viewport
 
@@ -62,6 +62,20 @@ Captures content outside the browser — your entire screen, a specific applicat
 4. The selected source is captured and the editor opens
 
 **Shortcut:** Press **Alt+D** to launch the screen or window picker without opening the popup.
+
+## Screen Recording
+
+Records your screen, a window or a browser tab as a WebM video file. All encoding happens locally — nothing is sent over the network.
+
+1. Click **Screen Recording** in the popup
+2. Choose a duration limit (default 30 seconds, max 60 seconds) and frame rate (default 30 fps)
+3. Click **Start Recording**
+4. The browser displays a native source picker — choose a screen, window or tab
+5. A timer shows the elapsed time while recording
+6. Click **Stop Recording** to finish early, or wait for the duration limit
+7. A save dialog opens to download the `.webm` file
+
+**Note:** Recordings bypass the image editor and download directly. Audio is not captured.
 
 ## See Also
 

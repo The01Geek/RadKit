@@ -1,6 +1,6 @@
 # Capture Modes
 
-RadKit supports four capture modes, all implemented in `entrypoints/background.ts`.
+RadKit supports five screenshot capture modes and one recording mode, all implemented in `entrypoints/background.ts`.
 
 ## Visible Viewport (`captureVisibleTab`)
 
