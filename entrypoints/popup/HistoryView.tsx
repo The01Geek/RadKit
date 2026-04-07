@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { HistoryStore, type ScreenshotRecord } from '../lib/historyStore';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { HistoryStore } from '../lib/historyStore';
 import { blobToDataUrl } from '../lib/thumbnailGenerator';
 import { IconTrash, IconCopy, IconExternalLink, IconTag, IconSearch, IconCamera } from '../editor/Icons';
 
@@ -29,21 +29,33 @@ function relativeTime(iso: string): string {
 export default function HistoryView() {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingTagsId, setEditingTagsId] = useState<number | null>(null);
   const [tagInput, setTagInput] = useState('');
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  // Debounce search input
+  useEffect(() => {
+    searchTimerRef.current = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(searchTimerRef.current);
+  }, [searchQuery]);
 
   const loadEntries = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
-      const records = searchQuery
-        ? await HistoryStore.search({ tag: searchQuery })
-        : await HistoryStore.getAll({ limit: 100 });
+      const records = debouncedQuery
+        ? await HistoryStore.searchWithThumbnails({ tag: debouncedQuery })
+        : await HistoryStore.getAllWithThumbnails();
 
       const mapped = await Promise.all(
-        records.map(async (rec: ScreenshotRecord) => ({
-          id: rec.id!,
-          thumbnailUrl: await blobToDataUrl(rec.thumbnail),
+        records.map(async (rec) => ({
+          id: rec.id,
+          thumbnailUrl: await blobToDataUrl(rec.thumbnailBlob),
           timestamp: rec.timestamp,
           tags: rec.tags,
           captureMode: rec.captureMode,
@@ -54,24 +66,30 @@ export default function HistoryView() {
       setEntries(mapped);
     } catch (err) {
       console.error('Failed to load history:', err);
+      setError('Failed to load history. Please try again.');
     }
     setLoading(false);
-  }, [searchQuery]);
+  }, [debouncedQuery]);
 
   useEffect(() => {
     loadEntries();
   }, [loadEntries]);
 
   const handleDelete = async (id: number) => {
-    await HistoryStore.delete(id);
-    setEntries((prev) => prev.filter((e) => e.id !== id));
+    try {
+      await HistoryStore.delete(id);
+      setEntries((prev) => prev.filter((e) => e.id !== id));
+    } catch (err) {
+      console.error('Delete failed:', err);
+      setError('Failed to delete screenshot.');
+    }
   };
 
   const handleCopyToClipboard = async (id: number) => {
-    const blob = await HistoryStore.getFullImage(id);
-    if (!blob) return;
-
     try {
+      const blob = await HistoryStore.getFullImage(id);
+      if (!blob) return;
+
       const pngBlob = blob.type === 'image/png' ? blob : await convertToPng(blob);
       await navigator.clipboard.write([
         new ClipboardItem({ 'image/png': pngBlob }),
@@ -92,10 +110,15 @@ export default function HistoryView() {
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
-    await HistoryStore.updateTags(id, tags);
-    setEntries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, tags } : e))
-    );
+    try {
+      await HistoryStore.updateTags(id, tags);
+      setEntries((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, tags } : e))
+      );
+    } catch (err) {
+      console.error('Save tags failed:', err);
+      setError('Failed to save tags.');
+    }
     setEditingTagsId(null);
     setTagInput('');
   };
@@ -114,7 +137,15 @@ export default function HistoryView() {
     );
   }
 
-  if (entries.length === 0 && !searchQuery) {
+  if (error && entries.length === 0) {
+    return (
+      <div className="history-empty">
+        <p>{error}</p>
+      </div>
+    );
+  }
+
+  if (entries.length === 0 && !debouncedQuery) {
     return (
       <div className="history-empty">
         <IconCamera />
@@ -137,7 +168,11 @@ export default function HistoryView() {
         />
       </div>
 
-      {entries.length === 0 && searchQuery && (
+      {error && (
+        <div className="status-bar">{error}</div>
+      )}
+
+      {entries.length === 0 && debouncedQuery && (
         <div className="history-empty">
           <p>No matches found</p>
           <span>Try a different search term</span>
@@ -234,7 +269,8 @@ export default function HistoryView() {
 async function convertToPng(blob: Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(blob);
   const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not create canvas context for PNG conversion');
   ctx.drawImage(bitmap, 0, 0);
   bitmap.close();
   return canvas.convertToBlob({ type: 'image/png' });

@@ -363,8 +363,12 @@ function Editor() {
             const screenshotId = params.get('screenshotId');
 
             if (screenshotId) {
+                const id = parseInt(screenshotId, 10);
+                if (isNaN(id) || id <= 0) {
+                    setError('Invalid screenshot ID.');
+                    return;
+                }
                 try {
-                    const id = parseInt(screenshotId, 10);
                     const record = await HistoryStore.getById(id);
                     if (record) {
                         const dataUrl = await blobToDataUrl(record.fullImage);
@@ -375,13 +379,16 @@ function Editor() {
                         applyImageDataUrl(dataUrl);
                         return;
                     }
-                    console.warn('Editor: Screenshot not found in history for id:', id);
+                    setError('Screenshot not found in history. It may have been deleted.');
+                    return;
                 } catch (err) {
                     console.error('Editor: Failed to load from history:', err);
+                    setError('Failed to load screenshot from history.');
+                    return;
                 }
             }
 
-            // Default: load from browser.storage.local
+            // Default: load from browser.storage.local (fresh captures)
             (window as any).chrome.storage.local.get(['capturedImage', 'stylePresets'], (result: { capturedImage?: string; stylePresets?: Preset[] }) => {
                 if ((window as any).chrome.runtime.lastError) {
                     console.error('Editor: Storage retrieval failed:', (window as any).chrome.runtime.lastError);

@@ -11,6 +11,7 @@ export interface ScreenshotRecord {
 
 export interface ScreenshotMeta {
   id: number;
+  thumbnailUrl?: string;
   timestamp: string;
   tags: string[];
   captureMode: string;
@@ -54,64 +55,71 @@ function withTransaction<T>(
       new Promise<T>((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, mode);
         const store = tx.objectStore(STORE_NAME);
+        let result: T;
         const request = fn(store);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-        tx.oncomplete = () => db.close();
-        tx.onerror = () => {
-          reject(tx.error);
+        request.onsuccess = () => {
+          result = request.result;
+        };
+        tx.oncomplete = () => {
           db.close();
+          resolve(result);
+        };
+        tx.onerror = () => {
+          db.close();
+          reject(tx.error);
         };
       })
   );
 }
 
-async function prune(): Promise<void> {
-  const db = await openDB();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const countReq = store.count();
-
-    countReq.onsuccess = () => {
-      const count = countReq.result;
-      if (count < MAX_RECORDS) {
-        resolve();
-        return;
-      }
-
-      const toDelete = count - MAX_RECORDS + 1;
-      const index = store.index('timestamp');
-      const cursorReq = index.openCursor();
-      let deleted = 0;
-
-      cursorReq.onsuccess = () => {
-        const cursor = cursorReq.result;
-        if (cursor && deleted < toDelete) {
-          store.delete(cursor.primaryKey);
-          deleted++;
-          cursor.continue();
-        }
-      };
-    };
-
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
-  });
-}
-
 export const HistoryStore = {
   async add(record: Omit<ScreenshotRecord, 'id'>): Promise<number> {
-    await prune();
-    return withTransaction('readwrite', (store) =>
-      store.add(record)
-    ) as Promise<number>;
+    const db = await openDB();
+    return new Promise<number>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      let newId: number;
+
+      // Prune and add in a single transaction to avoid TOCTOU race
+      const countReq = store.count();
+      countReq.onsuccess = () => {
+        const count = countReq.result;
+        if (count >= MAX_RECORDS) {
+          const toDelete = count - MAX_RECORDS + 1;
+          const index = store.index('timestamp');
+          const cursorReq = index.openCursor();
+          let deleted = 0;
+
+          cursorReq.onsuccess = () => {
+            const cursor = cursorReq.result;
+            if (cursor && deleted < toDelete) {
+              store.delete(cursor.primaryKey);
+              deleted++;
+              cursor.continue();
+            } else {
+              const addReq = store.add(record);
+              addReq.onsuccess = () => {
+                newId = addReq.result as number;
+              };
+            }
+          };
+        } else {
+          const addReq = store.add(record);
+          addReq.onsuccess = () => {
+            newId = addReq.result as number;
+          };
+        }
+      };
+
+      tx.oncomplete = () => {
+        db.close();
+        resolve(newId);
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
+    });
   },
 
   async getById(id: number): Promise<ScreenshotRecord | undefined> {
@@ -135,10 +143,7 @@ export const HistoryStore = {
 
       cursorReq.onsuccess = () => {
         const cursor = cursorReq.result;
-        if (!cursor) {
-          resolve(results);
-          return;
-        }
+        if (!cursor) return;
         if (skipped < offset) {
           skipped++;
           cursor.continue();
@@ -147,13 +152,13 @@ export const HistoryStore = {
         if (results.length < limit) {
           results.push(cursor.value as ScreenshotRecord);
           cursor.continue();
-        } else {
-          resolve(results);
         }
       };
 
-      cursorReq.onerror = () => reject(cursorReq.error);
-      tx.oncomplete = () => db.close();
+      tx.oncomplete = () => {
+        db.close();
+        resolve(results);
+      };
       tx.onerror = () => {
         db.close();
         reject(tx.error);
@@ -174,10 +179,7 @@ export const HistoryStore = {
 
       cursorReq.onsuccess = () => {
         const cursor = cursorReq.result;
-        if (!cursor) {
-          resolve(results);
-          return;
-        }
+        if (!cursor) return;
         const rec = cursor.value as ScreenshotRecord;
         results.push({
           id: rec.id!,
@@ -190,8 +192,10 @@ export const HistoryStore = {
         cursor.continue();
       };
 
-      cursorReq.onerror = () => reject(cursorReq.error);
-      tx.oncomplete = () => db.close();
+      tx.oncomplete = () => {
+        db.close();
+        resolve(results);
+      };
       tx.onerror = () => {
         db.close();
         reject(tx.error);
@@ -199,17 +203,50 @@ export const HistoryStore = {
     });
   },
 
-  async getThumbnail(id: number): Promise<Blob | undefined> {
-    const record = await this.getById(id);
-    return record?.thumbnail;
+  async getAllWithThumbnails(): Promise<(ScreenshotMeta & { thumbnailBlob: Blob })[]> {
+    const db = await openDB();
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const index = store.index('timestamp');
+      const results: (ScreenshotMeta & { thumbnailBlob: Blob })[] = [];
+
+      const cursorReq = index.openCursor(null, 'prev');
+
+      cursorReq.onsuccess = () => {
+        const cursor = cursorReq.result;
+        if (!cursor) return;
+        const rec = cursor.value as ScreenshotRecord;
+        results.push({
+          id: rec.id!,
+          timestamp: rec.timestamp,
+          tags: rec.tags,
+          captureMode: rec.captureMode,
+          url: rec.url,
+          title: rec.title,
+          thumbnailBlob: rec.thumbnail,
+        });
+        cursor.continue();
+      };
+
+      tx.oncomplete = () => {
+        db.close();
+        resolve(results);
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
+    });
   },
 
-  async search(query: {
+  async searchWithThumbnails(query: {
     tag?: string;
     dateFrom?: string;
     dateTo?: string;
-  }): Promise<ScreenshotRecord[]> {
-    const all = await this.getAll({ limit: MAX_RECORDS });
+  }): Promise<(ScreenshotMeta & { thumbnailBlob: Blob })[]> {
+    const all = await this.getAllWithThumbnails();
     return all.filter((rec) => {
       if (query.tag) {
         const q = query.tag.toLowerCase();
