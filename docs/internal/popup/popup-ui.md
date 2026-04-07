@@ -22,7 +22,7 @@ The extension popup (`entrypoints/popup/`) is a React app shown when the user cl
 Each card calls `handleCapture(mode)` on click, which:
 1. Sets `isCapturing = true` and shows "Capturing..." (or "Opening recorder..." for recording mode)
 2. Sends `{ type: 'capture', mode }` to the background script
-3. On success: shows "Opening editor..." and closes the popup after 500ms
+3. On success: shows "Opening editor..." and closes the popup after 500ms (recording mode closes immediately without the editor message)
 4. On failure: displays the error message and re-enables the buttons
 
 ## Design: Dark Glassmorphism
