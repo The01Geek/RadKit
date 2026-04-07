@@ -77,6 +77,9 @@ export default defineBackground(() => {
         case 'desktop':
           imageDataUrl = await captureDesktopMedia();
           break;
+        case 'recording':
+          await startRecordingSession();
+          return { success: true };
         default:
           throw new Error('Unknown capture mode');
       }
@@ -133,6 +136,33 @@ export default defineBackground(() => {
               resolve(message.dataUrl);
             } else {
               reject(new Error(message.error || 'Capture failed'));
+            }
+          };
+          browser.runtime.onMessage.addListener(listener);
+        }
+      );
+    });
+  }
+
+  async function startRecordingSession(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      chrome.windows.create(
+        {
+          url: chrome.runtime.getURL('/record.html'),
+          type: 'popup',
+          width: 480,
+          height: 360,
+          focused: true,
+        },
+        (win) => {
+          const listener = (message: any) => {
+            if (message.type !== 'recording-complete') return;
+            browser.runtime.onMessage.removeListener(listener);
+            if (win?.id) chrome.windows.remove(win.id);
+            if (message.success) {
+              resolve();
+            } else {
+              reject(new Error(message.error || 'Recording failed'));
             }
           };
           browser.runtime.onMessage.addListener(listener);

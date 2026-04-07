@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import './App.css';
-import { IconMonitor, IconSelection, IconFile, IconTimer, IconDesktop } from '../editor/Icons';
+import { IconMonitor, IconSelection, IconFile, IconTimer, IconDesktop, IconRecord } from '../editor/Icons';
 
-type CaptureMode = 'visible' | 'selection' | 'fullpage' | 'visible-delayed' | 'desktop';
+type CaptureMode = 'visible' | 'selection' | 'fullpage' | 'visible-delayed' | 'desktop' | 'recording';
 
 function App() {
     const [isCapturing, setIsCapturing] = useState(false);
@@ -19,8 +19,12 @@ function App() {
             });
 
             if (response?.success) {
-                setStatus('Opening editor...');
-                setTimeout(() => window.close(), 500);
+                if (mode === 'recording') {
+                    window.close();
+                } else {
+                    setStatus('Opening editor...');
+                    setTimeout(() => window.close(), 500);
+                }
             } else {
                 setStatus(response?.error || 'Capture failed');
                 setIsCapturing(false);
@@ -96,6 +100,18 @@ function App() {
                     <div className="card-content">
                         <span className="card-label">Screen / Window</span>
                         <span className="card-desc">Capture screen or app window</span>
+                    </div>
+                </button>
+
+                <button
+                    className="capture-card"
+                    onClick={() => handleCapture('recording')}
+                    disabled={isCapturing}
+                >
+                    <span className="icon-wrap"><IconRecord /></span>
+                    <div className="card-content">
+                        <span className="card-label">Recording</span>
+                        <span className="card-desc">Record screen as WebM video</span>
                     </div>
                 </button>
             </div>
