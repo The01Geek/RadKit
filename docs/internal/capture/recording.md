@@ -1,44 +1,98 @@
-# Recording (GIF / Video Capture) — Design Reference
+# Screen Recording (WebM Video Capture)
 
-> **Status**: Not yet implemented. This document captures the current state of related infrastructure and design considerations for the recording feature.
+> **Status**: Implemented. Records browser tabs or screen regions as WebM video clips using `MediaRecorder`.
 
-## Current State
+## Overview
 
-RadKit's capture system is entirely **static** — every mode produces a single PNG screenshot. There is no recording, animation, or video capture functionality today.
+The recording capture mode extends RadKit's capture system from static PNG screenshots to video recording. It uses `getDisplayMedia` for screen access and `MediaRecorder` for client-side WebM encoding, then triggers a direct file download — bypassing the image editor and `browser.storage.local` entirely.
 
-### Relevant Existing Infrastructure
+## Architecture
 
-| Component | File | Relevance |
-|-----------|------|-----------|
-| `getDisplayMedia` popup window | `public/capture.html` + `public/capture.js` | Already opens a popup window with user activation to call `getDisplayMedia`. Recording will extend this pattern to keep the stream open instead of grabbing a single frame. |
-| Background orchestration | `entrypoints/background.ts` | `handleCapture()` switch dispatches by mode string. A new `'recording'` mode would be added here. |
-| Popup UI | `entrypoints/popup/App.tsx` | `CaptureMode` type union and capture card buttons. A new card for recording would be added. |
-| Editor | `entrypoints/editor/Editor.tsx` | Currently expects a static PNG data URL from `browser.storage.local`. Would need to either accept video/GIF blobs or the recording feature would bypass the editor entirely and offer direct download. |
-| Storage | `browser.storage.local` (`capturedImage` key) | Data URLs for large recordings may exceed storage limits. Video/GIF output may need `IndexedDB` or direct blob download instead. |
+### Files
 
-### APIs Available in Extension Context
+| File | Purpose |
+|------|---------|
+| `public/record.html` | Recording popup window — HTML with inline CSS for start/stop controls, duration input, frame rate selector, and live timer |
+| `public/record.js` | All recording logic — `getDisplayMedia`, `MediaRecorder`, chunk collection, blob assembly, `chrome.downloads.download()`, and background messaging |
+| `entrypoints/background.ts` | `startRecordingSession()` function — opens the recording window and listens for completion/window-close |
+| `entrypoints/popup/App.tsx` | Recording card in the popup UI, `'recording'` in `CaptureMode` type union |
+| `entrypoints/editor/Icons.tsx` | `IconRecord` component (filled circle inside stroked circle) |
+| `wxt.config.ts` | `'downloads'` permission in manifest |
 
-- **`navigator.mediaDevices.getDisplayMedia()`** — already used in `capture.js` for screen/window/tab selection. Returns a `MediaStream` that can be piped to `MediaRecorder`.
-- **`MediaRecorder` API** — records a `MediaStream` into `webm` (VP8/VP9) or potentially other formats. Available in both Chrome and Edge.
-- **`OffscreenCanvas` / `ImageBitmap`** — already used in `stitchImages()` for full-page capture. Could be used for GIF frame extraction.
+### Flow
 
-### Key Constraints
+```
+Popup                    Background                Recording Window
+  │                         │                          │
+  ├─ capture/recording ────►│                          │
+  │                         ├─ chrome.windows.create ──► (record.html)
+  │                         │  (registers message +     │
+  │                         │   window-close listeners)  │
+  │                         │                          ├─ User clicks Start
+  │                         │                          ├─ getDisplayMedia()
+  │                         │                          ├─ MediaRecorder.start()
+  │                         │                          ├─ ... recording in progress ...
+  │                         │                          ├─ User clicks Stop / duration limit
+  │                         │                          ├─ MediaRecorder.stop()
+  │                         │                          ├─ Blob assembly
+  │                         │                          ├─ chrome.downloads.download(blobUrl)
+  │                         │                          ├─ sendMessage('recording-complete')
+  │                         │◄── recording-complete ───┤
+  │                         ├─ chrome.windows.remove    │
+  │◄── { success: true } ──┤                          │
+  │  (window.close())       │                          │
+```
 
-1. **Privacy model** — RadKit makes zero network requests. All recording/encoding must happen client-side.
-2. **MV3 service worker** — the background script cannot access DOM APIs. Any canvas/video processing must happen in a popup window, offscreen document, or content script.
-3. **User activation** — `getDisplayMedia` requires a transient user gesture. The existing popup window pattern (`chrome.windows.create`) solves this.
-4. **Storage limits** — `browser.storage.local` has a 10 MB default limit (even with `unlimitedStorage`). Video data should use blob URLs or IndexedDB rather than data URLs in storage.
+### Key Design Decisions
 
-### File Locations for Implementation
+1. **Separate popup window** — `getDisplayMedia` requires a transient user gesture. The popup window created via `chrome.windows.create()` provides this. Same pattern as `captureDesktopMedia()`.
 
-New files that would likely be created:
+2. **Download from recording window** — Blob URLs are scoped to the window that created them. `chrome.downloads.download()` is called from `record.js` (inside the popup window), not from the background service worker.
 
-- `public/record.html` + `public/record.js` — popup window for recording (similar to `capture.html`/`capture.js`)
-- Or extend `public/capture.html`/`capture.js` to support both single-frame and recording modes
+3. **Editor bypass** — The `'recording'` case in `handleCapture()` returns `{ success: true }` directly after `startRecordingSession()` resolves, skipping `browser.storage.local.set()` and `editor.html`. Video blobs would exceed storage limits and the image editor cannot process video.
 
-Files that would be modified:
+4. **Window lifecycle management** — The background script listens for both `recording-complete` messages and `chrome.windows.onRemoved` events. If the user closes the recording window manually, the promise rejects cleanly and listeners are removed (no leaks).
 
-- `entrypoints/background.ts` — add `'recording'` case to `handleCapture()`, manage recording window lifecycle
-- `entrypoints/popup/App.tsx` — add recording card to the popup, extend `CaptureMode` type
-- `entrypoints/editor/Icons.tsx` — add a recording icon (e.g., `IconRecord`)
-- `wxt.config.ts` — no new permissions needed (`getDisplayMedia` and `MediaRecorder` are standard web APIs)
+## Recording Controls
+
+| Control | Default | Range | Notes |
+|---------|---------|-------|-------|
+| Frame rate | 30 fps | 15 / 30 / 60 fps | Passed as `{ frameRate: fps }` constraint to `getDisplayMedia`. Browsers may ignore this for screen capture. |
+| Duration limit | 30 seconds | 5–60 seconds | Enforced via `setTimeout`. Recording stops automatically when reached. |
+| Start/Stop button | — | — | Visual toggle: red circle (start) → red square (stop) |
+
+## Codec Negotiation
+
+`record.js` tries MIME types in order:
+1. `video/webm;codecs=vp9`
+2. `video/webm;codecs=vp8`
+3. `video/webm` (generic)
+
+Uses `MediaRecorder.isTypeSupported()` to select the first supported type. All Chromium browsers support at least VP8.
+
+## Error Handling
+
+Every error path in `record.js` calls `sendComplete(false, errorMessage)` to notify the background script, preventing hung promises:
+
+- `getDisplayMedia` denial or failure
+- No video track in stream
+- Unsupported MIME type
+- `MediaRecorder` constructor failure
+- `MediaRecorder.onerror` during recording
+- `chrome.downloads.download` failure
+- Empty recording (no data chunks)
+
+The background script also detects the recording window being closed via `chrome.windows.onRemoved` and rejects the promise with `'Recording window was closed'`.
+
+`sendComplete()` includes a callback to handle extension context invalidation (e.g., extension update during recording), showing the user a fallback message to close the window manually.
+
+## Privacy
+
+- **Zero network requests** — all encoding is client-side via `MediaRecorder`
+- **No storage** — video data never touches `browser.storage.local`; uses ephemeral blob URL
+- **No audio** — `audio: false` is explicitly set in `getDisplayMedia` constraints
+- **Blob cleanup** — blob URL is revoked 5 seconds after download initiation
+
+## Permissions
+
+The `'downloads'` permission was added to `wxt.config.ts` to enable `chrome.downloads.download()` from extension pages.

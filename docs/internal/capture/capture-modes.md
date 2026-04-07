@@ -1,6 +1,6 @@
 # Capture Modes
 
-RadKit supports four capture modes, all implemented in `entrypoints/background.ts`.
+RadKit supports five capture modes plus a recording mode, all implemented in `entrypoints/background.ts`.
 
 ## Visible Viewport (`captureVisibleTab`)
 
@@ -116,3 +116,14 @@ The previous approach using `chrome.desktopCapture.chooseDesktopMedia` + `getUse
 ### Frame Capture Timing
 
 The capture uses `setTimeout(300ms)` instead of `requestVideoFrameCallback` to wait for a decoded frame. This is intentional: `requestVideoFrameCallback` only fires when the page is actively rendering, but when the user selects a different tab from the picker, the capture window goes to the background and the callback never fires. `setTimeout` works regardless of page visibility.
+
+## Screen Recording (`recording`)
+
+Records the screen, a window, or a browser tab as a WebM video clip using `MediaRecorder`. This is the only mode that produces video output instead of a static PNG.
+
+- **Triggered by**: Popup "Recording" button
+- **Output**: `.webm` file downloaded directly (bypasses editor and storage)
+- **Controls**: Start/stop button, duration limit (default 30s, max 60s), frame rate selector (15/30/60 fps)
+- **Permissions**: Requires `downloads` permission for `chrome.downloads.download()`
+
+See [recording.md](recording.md) for full technical details.
