@@ -179,3 +179,320 @@ body {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.5; transform: scale(0.8); }
 }
+
+/* Tab Toggle */
+.tab-toggle {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 10px;
+    padding: 3px;
+    border: 1px solid var(--card-border);
+}
+
+.tab-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.tab-btn.tab-active {
+    color: var(--text-primary);
+    background: rgba(161, 115, 254, 0.15);
+    border: 1px solid rgba(161, 115, 254, 0.25);
+}
+
+.tab-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* History View */
+.history-view {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.history-view::-webkit-scrollbar {
+    width: 4px;
+}
+
+.history-view::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.history-view::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+}
+
+.history-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    color: var(--text-secondary);
+}
+
+.history-search-input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.history-search-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.history-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.history-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.history-card:hover {
+    border-color: var(--card-hover-border);
+    box-shadow: 0 0 16px var(--accent-glow);
+}
+
+.history-card-thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/3;
+    overflow: hidden;
+    cursor: pointer;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.history-card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.history-card-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.history-card-thumb:hover .history-card-overlay {
+    opacity: 1;
+}
+
+.history-card-overlay span {
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
+.history-card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px 2px;
+}
+
+.history-card-time {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.history-card-mode {
+    font-size: 10px;
+    color: var(--accent);
+    background: rgba(161, 115, 254, 0.1);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.history-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    padding: 2px 8px 4px;
+    min-height: 22px;
+    cursor: pointer;
+}
+
+.history-tag-chip {
+    font-size: 10px;
+    color: var(--accent);
+    background: rgba(161, 115, 254, 0.12);
+    padding: 1px 6px;
+    border-radius: 8px;
+    white-space: nowrap;
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.history-tag-add {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
+.history-tag-editor {
+    display: flex;
+    gap: 4px;
+    padding: 2px 6px 4px;
+}
+
+.history-tag-input {
+    flex: 1;
+    min-width: 0;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    padding: 3px 6px;
+    font-size: 10px;
+    color: var(--text-primary);
+    font-family: inherit;
+    outline: none;
+}
+
+.history-tag-input:focus {
+    border-color: var(--accent);
+}
+
+.history-tag-save {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.history-card-actions {
+    display: flex;
+    gap: 2px;
+    padding: 2px 6px 6px;
+}
+
+.history-action-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.history-action-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--card-border);
+}
+
+.history-action-delete:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.history-loading {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 40px 20px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.history-empty {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.history-empty svg {
+    width: 32px;
+    height: 32px;
+    opacity: 0.4;
+}
+
+.history-empty p {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.history-empty span {
+    font-size: 12px;
+}
