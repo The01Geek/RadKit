@@ -36,7 +36,7 @@ export default function HistoryView() {
           endDate: dateTo ? new Date(dateTo + 'T23:59:59').toISOString() : undefined,
         });
       } else {
-        results = await HistoryStore.getAll();
+        results = await HistoryStore.getAll(true);
       }
       setRecords(results);
     } catch (e) {

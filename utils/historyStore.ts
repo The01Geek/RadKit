@@ -40,39 +40,40 @@ export const HistoryStore = {
   async add(record: Omit<ScreenshotRecord, 'id'>): Promise<number> {
     const db = await openDB();
     try {
-      // Prune oldest if at capacity
-      const count = await new Promise<number>((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readonly');
-        const req = tx.objectStore(STORE_NAME).count();
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-
-      if (count >= MAX_RECORDS) {
-        await new Promise<void>((resolve, reject) => {
-          const tx = db.transaction(STORE_NAME, 'readwrite');
-          const store = tx.objectStore(STORE_NAME);
-          const idx = store.index('timestamp');
-          const cursor = idx.openCursor(); // ascending = oldest first
-          cursor.onsuccess = () => {
-            if (cursor.result) {
-              cursor.result.delete();
-            }
-            resolve();
-          };
-          cursor.onerror = () => reject(cursor.error);
-        });
-      }
-
-      // Add the new record
-      const id = await new Promise<number>((resolve, reject) => {
+      // Use a single readwrite transaction for atomic count + prune + add
+      return await new Promise<number>((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readwrite');
-        const req = tx.objectStore(STORE_NAME).add(record);
-        req.onsuccess = () => resolve(req.result as number);
-        req.onerror = () => reject(req.error);
-      });
+        const store = tx.objectStore(STORE_NAME);
 
-      return id;
+        const countReq = store.count();
+        countReq.onsuccess = () => {
+          const count = countReq.result;
+
+          const doAdd = () => {
+            const addReq = store.add(record);
+            addReq.onsuccess = () => resolve(addReq.result as number);
+            addReq.onerror = () => reject(addReq.error);
+          };
+
+          if (count >= MAX_RECORDS) {
+            // Delete the oldest entry before adding
+            const idx = store.index('timestamp');
+            const cursor = idx.openCursor(); // ascending = oldest first
+            cursor.onsuccess = () => {
+              if (cursor.result) {
+                cursor.result.delete();
+              }
+              doAdd();
+            };
+            cursor.onerror = () => reject(cursor.error);
+          } else {
+            doAdd();
+          }
+        };
+        countReq.onerror = () => reject(countReq.error);
+
+        tx.onerror = () => reject(tx.error);
+      });
     } finally {
       db.close();
     }
@@ -92,13 +93,19 @@ export const HistoryStore = {
     }
   },
 
-  async getAll(): Promise<ScreenshotRecord[]> {
+  async getAll(excludeFullImage = false): Promise<ScreenshotRecord[]> {
     const db = await openDB();
     try {
       const records = await new Promise<ScreenshotRecord[]>((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readonly');
         const req = tx.objectStore(STORE_NAME).getAll();
-        req.onsuccess = () => resolve(req.result);
+        req.onsuccess = () => {
+          let results = req.result;
+          if (excludeFullImage) {
+            results = results.map(({ fullImage, ...rest }) => rest as ScreenshotRecord);
+          }
+          resolve(results);
+        };
         req.onerror = () => reject(req.error);
       });
       // Return newest first
@@ -113,7 +120,7 @@ export const HistoryStore = {
     startDate?: string;
     endDate?: string;
   }): Promise<ScreenshotRecord[]> {
-    const all = await this.getAll();
+    const all = await this.getAll(true);
     return all.filter((r) => {
       if (query.tagText) {
         const q = query.tagText.toLowerCase();
@@ -180,9 +187,10 @@ export const HistoryStore = {
     const record = await this.getById(id);
     if (!record) return null;
     // Convert Blob to data URL
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(record.fullImage);
     });
   },
