@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useLayoutEffect } from
 import { Stage, Layer, Image as KonvaImage, Line, Arrow, Rect, Ellipse, Text, Transformer } from 'react-konva';
 import Konva from 'konva';
 import './editor.css';
+import { HistoryStore } from '../../utils/historyStore';
 import {
     IconUndo, IconRedo, IconCopy, IconSave, IconDownload,
     IconCrop, IconPencil, IconLine, IconArrow, IconSquare,
@@ -316,8 +317,73 @@ function Editor() {
     };
 
     useEffect(() => {
-        const loadImage = () => {
+        const applyImageData = (dataUrl: string) => {
+            const dataLength = dataUrl.length;
+            console.log(`Editor: Image found, Data URL length: ${dataLength} characters (~${Math.round(dataLength / 1024 / 1024)} MB)`);
+
+            setImageData(dataUrl);
+            const img = new window.Image();
+
+            img.onload = () => {
+                console.log(`Editor: Image rendered successfully (${img.width}x${img.height})`);
+                setImage(img);
+
+                const size = { width: img.width, height: img.height };
+                setStageSize(size);
+                setHistory([{ elements: [], image: img, stageSize: size }]);
+                setHistoryIndex(0);
+                setTimeout(() => {
+                    if (canvasContainerRef.current) {
+                        const containerWidth = canvasContainerRef.current.clientWidth - 40;
+                        const containerHeight = canvasContainerRef.current.clientHeight - 40;
+
+                        if (img.width > 0 && img.height > 0) {
+                            const fitZoom = Math.min(containerWidth / img.width, containerHeight / img.height, 1);
+                            setZoom(Math.max(0.1, Number.isFinite(fitZoom) ? fitZoom : 0.5));
+                            console.log('Editor: Initial zoom set to:', fitZoom);
+                        }
+                    }
+                }, 100);
+            };
+
+            img.onerror = (err) => {
+                console.error('Editor: Failed to decode image element.', err);
+                setError('Failed to render captured image. The screenshot might be too large for the browser to process. Try a smaller area or shorter page.');
+            };
+
+            img.src = dataUrl;
+        };
+
+        const loadImage = async () => {
             console.log('Editor: Attempting to load captured image...');
+
+            // Check for screenshotId query parameter (loading from history)
+            const params = new URLSearchParams(window.location.search);
+            const screenshotId = params.get('screenshotId');
+
+            if (screenshotId) {
+                console.log(`Editor: Loading from history, screenshotId=${screenshotId}`);
+                try {
+                    const dataUrl = await HistoryStore.getFullImage(Number(screenshotId));
+                    if (dataUrl) {
+                        // Also load presets from storage
+                        (window as any).chrome.storage.local.get(['stylePresets'], (result: { stylePresets?: Preset[] }) => {
+                            if (result?.stylePresets) setPresets(result.stylePresets);
+                        });
+                        applyImageData(dataUrl);
+                        return;
+                    } else {
+                        setError('Screenshot not found in history. It may have been deleted.');
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Editor: Failed to load from history:', e);
+                    setError('Failed to load screenshot from history.');
+                    return;
+                }
+            }
+
+            // Default: load from browser.storage.local (fresh capture flow)
             (window as any).chrome.storage.local.get(['capturedImage', 'stylePresets'], (result: { capturedImage?: string; stylePresets?: Preset[] }) => {
                 if ((window as any).chrome.runtime.lastError) {
                     console.error('Editor: Storage retrieval failed:', (window as any).chrome.runtime.lastError);
@@ -330,40 +396,7 @@ function Editor() {
                 }
 
                 if (result?.capturedImage) {
-                    const dataLength = result.capturedImage.length;
-                    console.log(`Editor: Image found, Data URL length: ${dataLength} characters (~${Math.round(dataLength / 1024 / 1024)} MB)`);
-
-                    setImageData(result.capturedImage);
-                    const img = new window.Image();
-
-                    img.onload = () => {
-                        console.log(`Editor: Image rendered successfully (${img.width}x${img.height})`);
-                        setImage(img);
-
-                        const size = { width: img.width, height: img.height };
-                        setStageSize(size);
-                        setHistory([{ elements: [], image: img, stageSize: size }]);
-                        setHistoryIndex(0);
-                        setTimeout(() => {
-                            if (canvasContainerRef.current) {
-                                const containerWidth = canvasContainerRef.current.clientWidth - 40;
-                                const containerHeight = canvasContainerRef.current.clientHeight - 40;
-
-                                if (img.width > 0 && img.height > 0) {
-                                    const fitZoom = Math.min(containerWidth / img.width, containerHeight / img.height, 1);
-                                    setZoom(Math.max(0.1, Number.isFinite(fitZoom) ? fitZoom : 0.5));
-                                    console.log('Editor: Initial zoom set to:', fitZoom);
-                                }
-                            }
-                        }, 100);
-                    };
-
-                    img.onerror = (err) => {
-                        console.error('Editor: Failed to decode image element.', err);
-                        setError('Failed to render captured image. The screenshot might be too large for the browser to process. Try a smaller area or shorter page.');
-                    };
-
-                    img.src = result.capturedImage;
+                    applyImageData(result.capturedImage);
                 }
                 else {
                     console.warn('Editor: No capturedImage found in storage');

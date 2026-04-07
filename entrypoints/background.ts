@@ -1,4 +1,7 @@
 // Background script for handling screenshot capture
+import { HistoryStore } from '../utils/historyStore';
+import { generateThumbnail, dataUrlToBlob } from '../utils/thumbnail';
+
 export default defineBackground(() => {
   console.log('RadKit background script loaded');
 
@@ -82,7 +85,27 @@ export default defineBackground(() => {
       }
 
       await browser.storage.local.set({ capturedImage: imageDataUrl });
+
+      // Auto-save to IndexedDB history
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      try {
+        const [thumbnail, fullImageBlob] = await Promise.all([
+          generateThumbnail(imageDataUrl),
+          dataUrlToBlob(imageDataUrl),
+        ]);
+        await HistoryStore.add({
+          fullImage: fullImageBlob,
+          thumbnail,
+          timestamp: new Date().toISOString(),
+          tags: [],
+          captureMode: mode,
+          url: tab?.url,
+          title: tab?.title,
+        });
+      } catch (e) {
+        console.error('Failed to save to history:', e);
+      }
+
       await browser.tabs.create({ url: browser.runtime.getURL('/editor.html') });
       await broadcastCleanup(tab?.id);
 
