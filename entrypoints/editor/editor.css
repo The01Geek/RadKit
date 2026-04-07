@@ -1067,3 +1067,122 @@ input[type="range"]::-webkit-slider-thumb {
   flex: 1;
   letter-spacing: -0.2px;
 }
+
+/* Stamp Tool */
+.stamp-menu-wrapper {
+  position: relative;
+}
+
+.stamp-picker {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 220px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-main);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  z-index: 1000;
+  overflow: hidden;
+  animation: dropdownIn 0.2s cubic-bezier(0, 0, 0.2, 1);
+}
+
+.stamp-picker-options {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+}
+
+.stamp-option {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 8px;
+  border: 2px solid var(--border-main);
+  border-radius: var(--radius-md);
+  background: var(--bg-base);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stamp-option:hover {
+  border-color: var(--brand-primary);
+  background: var(--bg-surface);
+}
+
+.stamp-option.active {
+  border-color: var(--brand-primary);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.stamp-option-preview {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.stamp-option-preview.step-preview {
+  background: var(--brand-primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.stamp-option-preview.callout-preview {
+  border-radius: var(--radius-sm);
+  background: #fff;
+  border: 1px solid var(--border-main);
+  position: relative;
+  overflow: hidden;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.callout-preview-border {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--brand-primary);
+}
+
+.stamp-option-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.stamp-picker-hint {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  border-top: 1px solid var(--border-main);
+}
+
+.prop-value {
+  font-size: 13px;
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+.prop-textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px;
+  border: 1px solid var(--border-main);
+  border-radius: var(--radius-sm);
+  background: var(--bg-base);
+  color: var(--text-main);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}

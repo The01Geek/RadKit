@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useLayoutEffect } from 'react';
-import { Stage, Layer, Image as KonvaImage, Line, Arrow, Rect, Ellipse, Text, Transformer } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Line, Arrow, Rect, Ellipse, Text, Transformer, Group, Circle } from 'react-konva';
 import Konva from 'konva';
 import './editor.css';
 import {
@@ -8,10 +8,12 @@ import {
     IconCircle, IconType, IconBlur, IconTrash, IconEye,
     IconEyeOff, IconPlus, IconMinus, IconRotateCcw, IconCheck, IconClose,
     IconAlert, IconAlignLeft, IconAlignCenter, IconAlignRight, IconCase,
-    IconBookmark, IconLayers, IconSettings, IconRefresh, IconImage
+    IconBookmark, IconLayers, IconSettings, IconRefresh, IconImage, IconStamp
 } from './Icons';
 
-type Tool = 'crop' | 'pencil' | 'line' | 'arrow' | 'rectangle' | 'circle' | 'text' | 'blur' | 'image';
+type Tool = 'crop' | 'pencil' | 'line' | 'arrow' | 'rectangle' | 'circle' | 'text' | 'blur' | 'image' | 'stamp';
+
+type StampType = 'numbered-step' | 'callout';
 
 interface DrawingElement {
     id: string;
@@ -43,6 +45,10 @@ interface DrawingElement {
     textCase?: 'none' | 'uppercase' | 'capitalize';
     align?: string;
     imageSrc?: string;
+    stampType?: StampType;
+    stampNumber?: number;
+    stampTitle?: string;
+    stampBody?: string;
 }
 
 interface HistoryEntry {
@@ -142,6 +148,64 @@ const ImageElement: React.FC<{
     return <KonvaImage {...commonProps} image={img} width={width} height={height} />;
 };
 
+const StampElement: React.FC<{
+    el: DrawingElement;
+    commonProps: any;
+}> = ({ el, commonProps }) => {
+    const w = el.width || 48;
+    const h = el.height || 48;
+
+    if (el.stampType === 'numbered-step') {
+        const radius = Math.min(w, h) / 2;
+        return (
+            <Group {...commonProps} width={w} height={h}>
+                <Circle x={radius} y={radius} radius={radius} fill={el.color} />
+                <Text
+                    x={0} y={0}
+                    width={w} height={h}
+                    text={String(el.stampNumber || 1)}
+                    fontSize={radius * 1.1}
+                    fontStyle="bold"
+                    fill="#ffffff"
+                    align="center"
+                    verticalAlign="middle"
+                />
+            </Group>
+        );
+    }
+
+    if (el.stampType === 'callout') {
+        const borderWidth = 6;
+        const padding = 12;
+        const titleFontSize = Math.max(12, Math.min(18, h * 0.2));
+        const bodyFontSize = Math.max(10, Math.min(14, h * 0.16));
+        return (
+            <Group {...commonProps} width={w} height={h}>
+                <Rect x={0} y={0} width={w} height={h} fill="#ffffff" stroke={el.color} strokeWidth={1} cornerRadius={6} />
+                <Rect x={0} y={0} width={borderWidth} height={h} fill={el.color} cornerRadius={[6, 0, 0, 6]} />
+                <Text
+                    x={borderWidth + padding} y={padding}
+                    width={w - borderWidth - padding * 2}
+                    text={el.stampTitle || 'Title'}
+                    fontSize={titleFontSize}
+                    fontStyle="bold"
+                    fill={el.color}
+                />
+                <Text
+                    x={borderWidth + padding} y={padding + titleFontSize + 6}
+                    width={w - borderWidth - padding * 2}
+                    height={h - padding * 2 - titleFontSize - 6}
+                    text={el.stampBody || 'Description'}
+                    fontSize={bodyFontSize}
+                    fill="#555555"
+                />
+            </Group>
+        );
+    }
+
+    return null;
+};
+
 function Editor() {
     const stageRef = useRef<Konva.Stage>(null);
     const transformerRef = useRef<Konva.Transformer>(null);
@@ -216,6 +280,10 @@ function Editor() {
     const [toasts, setToasts] = useState<Toast[]>([]);
 
     const templatesRef = useRef<HTMLDivElement>(null);
+    const stampPickerRef = useRef<HTMLDivElement>(null);
+
+    const [stampType, setStampType] = useState<StampType>('numbered-step');
+    const [isStampPickerOpen, setIsStampPickerOpen] = useState(false);
 
     const toolSettingsRef = useRef<Record<Tool, Partial<DrawingElement>>>({
         crop: {},
@@ -231,7 +299,8 @@ function Editor() {
             letterSpacing: 0, lineHeight: 1.2, textCase: 'none'
         },
         blur: {},
-        image: {}
+        image: {},
+        stamp: { color: '#6366f1', opacity: 1 }
     });
 
     const showToast = (message: string, type: 'success' | 'info' | 'error' = 'info') => {
@@ -245,7 +314,7 @@ function Editor() {
 
     // Persist settings when they change
     useEffect(() => {
-        if (!tool || tool === 'crop' || tool === 'image' || tool === 'blur') return;
+        if (!tool || tool === 'crop' || tool === 'image' || tool === 'blur' || tool === 'stamp') return;
 
         const currentSettings = toolSettingsRef.current[tool] || {};
         const newSettings: Partial<DrawingElement> = { ...currentSettings };
@@ -481,6 +550,21 @@ function Editor() {
     }, [isTemplatesOpen]);
 
     useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (stampPickerRef.current && !stampPickerRef.current.contains(event.target as Node)) {
+                setIsStampPickerOpen(false);
+            }
+        };
+
+        if (isStampPickerOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isStampPickerOpen]);
+
+    useEffect(() => {
         if (textInput.visible && textInputRef.current) {
             setTimeout(() => {
                 textInputRef.current?.focus();
@@ -596,6 +680,40 @@ function Editor() {
                     textValueRef.current = '';
                     setTextValue('');
                 }
+            }
+            return;
+        }
+
+        if (tool === 'stamp') {
+            if (clickedOnEmpty) {
+                setSelectedId(null);
+                const existingSteps = elements.filter(e => e.type === 'stamp' && e.stampType === 'numbered-step');
+                const maxNum = existingSteps.reduce((max, e) => Math.max(max, e.stampNumber || 0), 0);
+                const isStep = stampType === 'numbered-step';
+                const w = isStep ? 48 : 220;
+                const h = isStep ? 48 : 90;
+                const newElement: DrawingElement = {
+                    id: `element-${Date.now()}`,
+                    type: 'stamp',
+                    stampType,
+                    stampNumber: isStep ? maxNum + 1 : undefined,
+                    stampTitle: !isStep ? 'Title' : undefined,
+                    stampBody: !isStep ? 'Description' : undefined,
+                    x: pos.x - w / 2,
+                    y: pos.y - h / 2,
+                    width: w,
+                    height: h,
+                    color,
+                    strokeWidth: 2,
+                    visible: true,
+                    name: isStep ? `Step ${maxNum + 1}` : `Callout ${elementCounter}`,
+                    opacity,
+                };
+                const newElements = [...elements, newElement];
+                setElements(newElements);
+                addToHistory(newElements);
+                setElementCounter(prev => prev + 1);
+                setSelectedId(newElement.id);
             }
             return;
         }
@@ -992,7 +1110,7 @@ function Editor() {
 
     const toolShortcuts: Record<string, Tool> = {
         c: 'crop', p: 'pencil', l: 'line', a: 'arrow',
-        r: 'rectangle', o: 'circle', t: 'text', b: 'blur', i: 'image',
+        r: 'rectangle', o: 'circle', t: 'text', b: 'blur', i: 'image', s: 'stamp',
     };
 
     const shortcutForTool = (id: Tool): string | undefined =>
@@ -1024,6 +1142,10 @@ function Editor() {
                 e.preventDefault();
                 if (matched === 'image') {
                     triggerImageUpload();
+                } else if (matched === 'stamp') {
+                    setTool(matched);
+                    loadToolSettings(matched);
+                    setIsStampPickerOpen(true);
                 } else {
                     setTool(matched);
                     loadToolSettings(matched);
@@ -1121,6 +1243,7 @@ function Editor() {
             case 'text': return <IconType />;
             case 'blur': return <IconBlur />;
             case 'image': return <IconImage />;
+            case 'stamp': return <IconStamp />;
             default: return null;
         }
     };
@@ -1135,6 +1258,7 @@ function Editor() {
         { id: 'text', icon: <IconType />, label: 'Text' },
         { id: 'blur', icon: <IconBlur />, label: 'Blur' },
         { id: 'image', icon: <IconImage />, label: 'Image' },
+        { id: 'stamp', icon: <IconStamp />, label: 'Stamp' },
     ];
 
     if (error) return <div className="editor-loading"><p><IconAlert /> {error}</p></div>;
@@ -1175,6 +1299,7 @@ function Editor() {
             case 'circle': return <Ellipse {...commonProps} x={el.x + Math.min(0, el.width || 0)} y={el.y + Math.min(0, el.height || 0)} radiusX={Math.abs(el.width || 0) / 2} radiusY={Math.abs(el.height || 0) / 2} stroke={el.color} strokeWidth={el.strokeWidth} fill={el.filled ? el.color + '4D' : 'rgba(0,0,0,0.05)'} offsetX={-Math.abs(el.width || 0) / 2} offsetY={-Math.abs(el.height || 0) / 2} />;
             case 'text': return <Text {...commonProps} key={`${el.id}-${el.fontFamily}-${el.fontSize}-${loadedFonts.includes(el.fontFamily || 'Inter')}`} text={transformText(el.text || '', el.textCase)} fontSize={el.fontSize || 24} fontFamily={el.fontFamily || 'Inter'} fontStyle="bold" fill={el.color} stroke={el.strokeColor || el.color} strokeWidth={el.strokeWidth || 0} shadowColor={el.shadowColor} shadowBlur={el.shadowBlur} shadowOffsetX={el.shadowOffset} shadowOffsetY={el.shadowOffset} letterSpacing={el.letterSpacing} lineHeight={el.lineHeight} align={el.align} />;
             case 'image': return <ImageElement src={el.imageSrc || ''} commonProps={commonProps} width={el.width} height={el.height} />;
+            case 'stamp': return <StampElement el={el} commonProps={commonProps} />;
             default: return null;
         }
     };
@@ -1187,6 +1312,45 @@ function Editor() {
                 </div>
                 <div className="header-tools">
                     {tools.map(t => (
+                        t.id === 'stamp' ? (
+                            <div key={t.id} className="stamp-menu-wrapper" ref={stampPickerRef}>
+                                <button className={`tool-btn ${tool === t.id ? 'active' : ''}`} onClick={() => {
+                                    setTool(t.id);
+                                    loadToolSettings(t.id);
+                                    setIsStampPickerOpen(!isStampPickerOpen);
+                                }} title={`${t.label}${shortcutForTool(t.id) ? ` (${shortcutForTool(t.id)})` : ''}`}>
+                                    <span className="icon">{t.icon}</span>
+                                    <span className="btn-label">{t.label}{shortcutForTool(t.id) ? ` (${shortcutForTool(t.id)})` : ''}</span>
+                                </button>
+                                {isStampPickerOpen && (
+                                    <div className="stamp-picker">
+                                        <div className="dropdown-header">Stamp Type</div>
+                                        <div className="stamp-picker-options">
+                                            <button
+                                                className={`stamp-option ${stampType === 'numbered-step' ? 'active' : ''}`}
+                                                onClick={() => setStampType('numbered-step')}
+                                            >
+                                                <div className="stamp-option-preview step-preview">
+                                                    <span>1</span>
+                                                </div>
+                                                <span className="stamp-option-label">Numbered Step</span>
+                                            </button>
+                                            <button
+                                                className={`stamp-option ${stampType === 'callout' ? 'active' : ''}`}
+                                                onClick={() => setStampType('callout')}
+                                            >
+                                                <div className="stamp-option-preview callout-preview">
+                                                    <div className="callout-preview-border"></div>
+                                                    <span>Aa</span>
+                                                </div>
+                                                <span className="stamp-option-label">Callout Box</span>
+                                            </button>
+                                        </div>
+                                        <div className="stamp-picker-hint">Click on canvas to place</div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
                         <button key={t.id} className={`tool-btn ${tool === t.id ? 'active' : ''}`} onClick={() => {
                             if (t.id === 'image') {
                                 triggerImageUpload();
@@ -1194,10 +1358,12 @@ function Editor() {
                                 setTool(t.id);
                                 loadToolSettings(t.id);
                             }
+                            setIsStampPickerOpen(false);
                         }} title={`${t.label}${shortcutForTool(t.id) ? ` (${shortcutForTool(t.id)})` : ''}`}>
                             <span className="icon">{t.icon}</span>
                             <span className="btn-label">{t.label}{shortcutForTool(t.id) ? ` (${shortcutForTool(t.id)})` : ''}</span>
                         </button>
+                        )
                     ))}
                     <div className="h-divider"></div>
                     {tool !== 'blur' && tool !== 'crop' && (
@@ -1409,6 +1575,49 @@ function Editor() {
                                                     onChange={(e) => updateElementProperty(el.id, { strokeWidth: parseInt(e.target.value) })}
                                                 />
                                             </div>
+                                        )}
+
+                                        {el.type === 'stamp' && (
+                                            <>
+                                                <div className="sidebar-divider"></div>
+                                                <label className="section-subtitle">Stamp Settings</label>
+                                                <div className="prop-row">
+                                                    <label>Type</label>
+                                                    <span className="prop-value">{el.stampType === 'numbered-step' ? 'Numbered Step' : 'Callout Box'}</span>
+                                                </div>
+                                                {el.stampType === 'numbered-step' && (
+                                                    <div className="prop-row">
+                                                        <label>Step Number</label>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            value={el.stampNumber || 1}
+                                                            onChange={(e) => updateElementProperty(el.id, { stampNumber: parseInt(e.target.value) || 1, name: `Step ${parseInt(e.target.value) || 1}` })}
+                                                        />
+                                                    </div>
+                                                )}
+                                                {el.stampType === 'callout' && (
+                                                    <>
+                                                        <div className="prop-row">
+                                                            <label>Title</label>
+                                                            <input
+                                                                type="text"
+                                                                value={el.stampTitle || ''}
+                                                                onChange={(e) => updateElementProperty(el.id, { stampTitle: e.target.value })}
+                                                            />
+                                                        </div>
+                                                        <div className="prop-row">
+                                                            <label>Body</label>
+                                                            <textarea
+                                                                value={el.stampBody || ''}
+                                                                onChange={(e) => updateElementProperty(el.id, { stampBody: e.target.value })}
+                                                                rows={3}
+                                                                className="prop-textarea"
+                                                            />
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </>
                                         )}
 
                                         {el.type === 'text' && (
