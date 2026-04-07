@@ -5,7 +5,7 @@ The extension popup (`entrypoints/popup/`) is a React app shown when the user cl
 ## Layout
 
 - **Header**: "RadKit" brand name with purple accent on "Kit", plus an "Alt+S" shortcut hint badge
-- **5 capture cards**: Stacked vertically, each with an icon and label/description
+- **6 capture cards**: Stacked vertically, each with an icon and label/description
 - **Status bar**: Shown during capture with a pulsing dot animation
 
 ## Capture Cards
@@ -17,11 +17,12 @@ The extension popup (`entrypoints/popup/`) is a React app shown when the user cl
 | Full Page | `fullpage` | `IconFile` | "Capture top to bottom" |
 | Visible After Delay | `visible-delayed` | `IconTimer` | "3-second countdown" |
 | Screen / Window | `desktop` | `IconDesktop` | "Capture screen or app window" |
+| Recording | `recording` | `IconRecord` | "Record screen as WebM video" |
 
 Each card calls `handleCapture(mode)` on click, which:
-1. Sets `isCapturing = true` and shows "Capturing..." status
+1. Sets `isCapturing = true` and shows "Capturing..." (or "Opening recorder..." for recording mode)
 2. Sends `{ type: 'capture', mode }` to the background script
-3. On success: shows "Opening editor..." and closes the popup after 500ms
+3. On success: shows "Opening editor..." and closes the popup after 500ms (recording mode closes immediately without the editor message)
 4. On failure: displays the error message and re-enables the buttons
 
 ## Design: Dark Glassmorphism
@@ -47,4 +48,4 @@ Defined in `entrypoints/popup/App.css`:
 
 ## Icons
 
-The popup imports icon components from `entrypoints/editor/Icons.tsx` (`IconMonitor`, `IconSelection`, `IconFile`, `IconTimer`, `IconDesktop`). These are shared with the editor to maintain visual consistency.
+The popup imports icon components from `entrypoints/editor/Icons.tsx` (`IconMonitor`, `IconSelection`, `IconFile`, `IconTimer`, `IconDesktop`, `IconRecord`). These are shared with the editor to maintain visual consistency.

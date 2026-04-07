@@ -77,6 +77,9 @@ export default defineBackground(() => {
         case 'desktop':
           imageDataUrl = await captureDesktopMedia();
           break;
+        case 'recording':
+          await startRecordingSession();
+          return { success: true };
         default:
           throw new Error('Unknown capture mode');
       }
@@ -136,6 +139,55 @@ export default defineBackground(() => {
             }
           };
           browser.runtime.onMessage.addListener(listener);
+        }
+      );
+    });
+  }
+
+  async function startRecordingSession(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      chrome.windows.create(
+        {
+          url: chrome.runtime.getURL('/record.html'),
+          type: 'popup',
+          width: 480,
+          height: 360,
+          focused: true,
+        },
+        (win) => {
+          if (chrome.runtime.lastError || !win?.id) {
+            reject(new Error(chrome.runtime.lastError?.message || 'Failed to create recording window'));
+            return;
+          }
+
+          let settled = false;
+
+          const cleanupListeners = () => {
+            browser.runtime.onMessage.removeListener(messageListener);
+            chrome.windows.onRemoved.removeListener(windowClosedListener);
+          };
+
+          const messageListener = (message: any) => {
+            if (message.type !== 'recording-complete') return;
+            settled = true;
+            cleanupListeners();
+            if (win?.id) chrome.windows.remove(win.id);
+            if (message.success) {
+              resolve();
+            } else {
+              reject(new Error(message.error || 'Recording failed'));
+            }
+          };
+
+          const windowClosedListener = (closedWinId: number) => {
+            if (closedWinId !== win.id || settled) return;
+            settled = true;
+            cleanupListeners();
+            reject(new Error('Recording window was closed'));
+          };
+
+          browser.runtime.onMessage.addListener(messageListener);
+          chrome.windows.onRemoved.addListener(windowClosedListener);
         }
       );
     });

@@ -12,8 +12,18 @@ RadKit uses Chrome's messaging APIs to coordinate between the popup, background 
 | `{ type: 'capture', mode: 'selection' }` | Start area selection flow | Same |
 | `{ type: 'capture', mode: 'fullpage' }` | Capture full scrollable page | Same |
 | `{ type: 'capture', mode: 'desktop' }` | Capture screen, window, or tab via desktop media picker | Same |
+| `{ type: 'capture', mode: 'recording' }` | Start screen recording session | Same |
 
 Sent from `entrypoints/popup/App.tsx` via `browser.runtime.sendMessage`. The background listener in `entrypoints/background.ts` returns `true` from the listener to indicate an async response.
+
+### Recording Window → Background
+
+| Message | Purpose |
+|---------|---------|
+| `{ type: 'recording-complete', success: true }` | Recording saved, close the recording window |
+| `{ type: 'recording-complete', success: false, error: string }` | Recording failed |
+
+Sent from `public/record.js` via `chrome.runtime.sendMessage`. The background script listens for this in `startRecordingSession()`. If the recording window is closed manually instead, `chrome.windows.onRemoved` detects it and rejects the promise.
 
 ### Background → Content Script
 
