@@ -1,17 +1,17 @@
 ---
 name: implement
-description: Use when a comment or message contains /implement followed by a GitHub issue number. Runs the full 4-phase lifecycle — setup, implementation, code review, and documentation.
-argument-hint: <issue-number>
+description: Use when a comment or message contains /implement, optionally followed by a GitHub issue number. Runs the full 4-phase lifecycle — setup, implementation, code review, and documentation.
+argument-hint: [issue-number]
 ---
 # /implement — Automated Feature Development Orchestrator
 
-You are the main implementation agent. Execute the full 4-phase lifecycle for a GitHub issue. You hold continuous context from discovery through documentation — most work happens directly in your session.
+You are the main implementation agent. Execute the full 4-phase lifecycle. You hold continuous context from discovery through documentation — most work happens directly in your session.
 
 **Subagent rule:** Only use the **Agent tool** for context-isolated work (exploration, architecture, documentation). Everything else — planning, implementation, testing, fixing — you do directly.
 
 **Skill rule:** Use the **Skill tool** for `review-and-fix` during code review and `pr-description` for PR documentation.
 
-**Input:** GitHub issue number provided as `$ARGUMENTS`
+**Input:** `$ARGUMENTS` is optional. It may be a GitHub issue number, empty, or absent. Phase 1.1 determines context from whatever is available.
 
 ## MANDATORY: All Four Phases Must Execute
 
@@ -27,18 +27,37 @@ Output the phase header at the start of each phase so progress is trackable.
 
 ## Phase 1: Setup
 
-Output: `Phase 1/4: Setup — fetching issue and creating branch...`
+Output: `Phase 1/4: Setup — determining context and creating branch...`
 
-### 1.1 Fetch the GitHub Issue
+### 1.1 Determine Context
 
-Run:
+Resolve the issue context using the first matching mode:
+
+**Mode A — Issue number provided** (e.g., `/implement 42`):
 ```bash
 gh issue view $ARGUMENTS --json title,body,labels,number
 ```
+If this fails, stop and report: "Error: Could not fetch GitHub issue #$ARGUMENTS. Verify the issue number exists."
 
-If this fails, stop immediately and report: "Error: Could not fetch GitHub issue #$ARGUMENTS. Verify the issue number exists."
+**Mode B — No argument, GitHub Action context** (issue comment trigger):
+The issue number is available from the environment. Extract it:
+```bash
+gh issue view "$ISSUE_NUMBER" --json title,body,labels,number
+```
+Where `$ISSUE_NUMBER` comes from the GitHub Action event payload (e.g., `github.event.issue.number`). If the environment variable is not set, fall through to Mode C.
 
-Save the issue title, body, labels, and number — you will use these throughout the workflow.
+**Mode C — No argument, Claude Code session** (interactive):
+No issue number was provided and no GitHub Action context is available. Use the **conversation context** as requirements:
+- Synthesize a title and description from what the user has discussed in this conversation
+- Set `{issue_number}` to empty (no linked issue)
+- Set `{issue_labels}` to empty
+
+After this step, you must have these variables resolved for the rest of the workflow:
+- `{issue_number}` — the GitHub issue number, or **empty** if using conversation context (Mode C)
+- `{issue_title}` — the issue or task title
+- `{issue_body}` — the full description/requirements
+- `{issue_labels}` — labels if available, otherwise empty
+- `{issue_ref}` — shorthand for commit messages: ` for issue #{issue_number}` if set, otherwise empty string
 
 ### 1.2 Create or Detect Feature Branch
 
@@ -51,9 +70,16 @@ If the current branch matches `claude/issue-*` or `issue-*`, use it — skip bra
 
 Otherwise, create a new branch. Slugify the issue title: lowercase, replace spaces/special characters with hyphens, truncate to 50 characters.
 
+If `{issue_number}` is set:
 ```bash
 git fetch origin main
 git checkout -b issue-{number}-{slugified-title} origin/main
+```
+
+If `{issue_number}` is empty (Mode C):
+```bash
+git fetch origin main
+git checkout -b feature/{slugified-title} origin/main
 ```
 
 If the branch name already exists, append today's date as YYYYMMDD.
@@ -84,7 +110,7 @@ If you made any documentation changes:
 ```bash
 DOC_PATH=$(yq '.docs.internal' .github/project-config.yml)
 git add "$DOC_PATH"
-git commit -m "docs: update internal documentation for issue #$ARGUMENTS"
+git commit -m "docs: update internal documentation{issue_ref}"
 git push
 ```
 
@@ -115,7 +141,7 @@ Plan the implementation inline using the explorer's findings. Identify which fil
 Use the **Agent tool** with `subagent_type: feature-dev:code-architect` to design the implementation.
 
 Pass it:
-- The full GitHub issue content (title, body, labels)
+- The full issue/task content (title, body, labels)
 - The explorer's distilled findings as inline context, prefixed with: "The code-explorer analyzed the current codebase and produced the following findings:"
 
 The architect returns a focused blueprint (files to create/modify, component designs, data flows, build sequence). Hold this blueprint in your context — do NOT commit it (it is a temporary working artifact).
@@ -145,7 +171,7 @@ Stage and commit all implementation changes:
 
 ```bash
 git add *
-git commit -m "feat: implement issue #$ARGUMENTS — {short description from issue title}"
+git commit -m "feat: {short description from issue title}{issue_ref}"
 git push
 ```
 
@@ -157,17 +183,19 @@ If the commit includes test fixes, use a single commit combining implementation 
 
 ## Phase 3: Review & Fix
 
-Output: `Phase 3/4: Review & Fix — creating PR and running review...`
+Output: `Phase 3/4: Review & Fix — creating draft PR and running review...`
 
 ### 3.1 Create Draft PR
 
+**The PR MUST be created as a draft and stay in draft until Phase 4 is complete.** Do NOT call `gh pr ready` in this phase.
+
 ```bash
-gh pr create --draft --title "{issue title}" --body "$(cat <<'EOF'
+gh pr create --draft --title "{issue_title}" --body "$(cat <<'EOF'
 Work in progress — automated review pending.
 
-Resolves #{issue_number}
+{if issue_number: "Resolves #{issue_number}"}
 
-Generated with [Claude Code](https://claude.com/claude-code) via `/implement $ARGUMENTS`
+Generated with [Claude Code](https://claude.com/claude-code) via `/implement`
 EOF
 )"
 ```
@@ -186,31 +214,25 @@ Follow the skill's instructions. It handles evaluation, fixing, testing, and re-
 After the skill completes (verdict: APPROVE), commit any fixes and push:
 ```bash
 git add *
-git commit -m "fix: address code review feedback for issue #$ARGUMENTS"
+git commit -m "fix: address code review feedback{issue_ref}"
 git push
 ```
 
 If the skill exits with unresolved findings after 4 iterations, report the remaining issues to the user and stop.
 
-### 3.3 Mark PR as Ready
-
-```bash
-gh pr ready
-```
-
-**⚠ You are NOT done. PR needs documentation and a proper description. Proceed to Phase 4.**
+**⚠ You are NOT done. The PR stays in DRAFT. It needs documentation, a proper description, and final review before publishing. Proceed to Phase 4.**
 
 ---
 
-## Phase 4: Documentation
+## Phase 4: Documentation & Finalize
 
-Output: `Phase 4/4: Documentation — updating docs and finalizing PR...`
+Output: `Phase 4/4: Documentation & Finalize — updating docs, PR description, and publishing...`
 
 ### 4.1 Update Documentation
 
 Spawn a **subagent** (using the Agent tool) and instruct it to invoke the `/docs` skill. Pass it:
-- The GitHub issue title, body, and number
-- Instruction: "Run /docs to update all documentation (internal docs, external docs, release notes). The issue context is provided for release notes generation."
+- The issue/task title, body, and number (if available)
+- Instruction: "Run /docs to update all documentation (internal docs, external docs, release notes). The issue/task context is provided for release notes generation."
 
 After the subagent completes, commit any documentation changes. Read the docs paths from `.github/project-config.yml`:
 
@@ -223,13 +245,13 @@ git status -- "$DOCS_INTERNAL" "$DOCS_EXTERNAL"
 If there are changes:
 ```bash
 git add "$DOCS_INTERNAL" "$DOCS_EXTERNAL"
-git commit -m "docs: update documentation for issue #$ARGUMENTS"
+git commit -m "docs: update documentation{issue_ref}"
 git push
 ```
 
 ### 4.2 Generate PR Description
 
-Invoke the **Skill tool** with `skill: "pr-description"` and `args: "$ARGUMENTS"` (the issue number).
+Invoke the **Skill tool** with `skill: "pr-description"` and, if `{issue_number}` is set, `args: "{issue_number}"`.
 
 This outputs the PR description between `<!-- PR_BODY_START -->` and `<!-- PR_BODY_END -->` markers. When running inside a GitHub Action, the bash step extracts this from the output to use as the PR body. When running locally, you can also use the output to update an existing PR:
 
@@ -240,7 +262,15 @@ EOF
 )"
 ```
 
-### 4.3 Report Completion
+### 4.3 Mark PR as Ready
+
+Only now — after documentation is updated and the PR description is finalized — mark the PR as ready for review:
+
+```bash
+gh pr ready
+```
+
+### 4.4 Report Completion
 
 Output the PR URL and a brief summary of what was accomplished.
 
@@ -249,10 +279,10 @@ Output the PR URL and a brief summary of what was accomplished.
 ## Completion Checklist
 
 Before reporting completion, verify ALL phases executed:
-- Phase 1: Issue fetched, branch exists
+- Phase 1: Context resolved (issue fetched or conversation context captured), branch exists
 - Phase 2: Code committed and pushed
-- Phase 3: PR created, review ran, PR marked ready
-- Phase 4: Docs updated, PR description generated via `/pr-description`
+- Phase 3: Draft PR created, review ran (PR still in draft)
+- Phase 4: Docs updated, PR description generated via `/pr-description`, PR marked ready
 
 If any phase was skipped, go back and complete it now.
 
