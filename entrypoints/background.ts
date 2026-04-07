@@ -1,3 +1,5 @@
+import { loadSettings } from './lib/settings';
+
 // Background script for handling screenshot capture
 export default defineBackground(() => {
   console.log('RadKit background script loaded');
@@ -99,9 +101,12 @@ export default defineBackground(() => {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) throw new Error('No active tab');
 
+    const settings = await loadSettings();
+    const format = settings.exportFormat === 'webp' ? 'png' : settings.exportFormat;
+
     return await new Promise<string>((resolve, reject) => {
       chrome.tabs.captureVisibleTab(
-        { format: 'png' },
+        { format, quality: Math.round(settings.exportQuality * 100) },
         (dataUrl) => {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
