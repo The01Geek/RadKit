@@ -182,17 +182,42 @@ jobs:
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
           PR_BODY=""
 
-          # --- Strategy 1: Extract from Claude's execution log ---
-          if [ -n "${CLAUDE_EXECUTION_FILE:-}" ] && [ -f "${CLAUDE_EXECUTION_FILE}" ]; then
-            echo "::group::Strategy 1 — Parse Claude execution file"
+          # --- Strategy 1: Extract from Claude's issue comment ---
+          # The claude-code-action posts a rich summary comment on the issue.
+          # This is the best source for the PR description.
+          echo "::group::Strategy 1 — Extract from Claude's issue comment"
+          CLAUDE_COMMENT=$(gh api "repos/${{ github.repository }}/issues/${ISSUE_NUMBER}/comments" \
+            --jq '[.[] | select(.user.login == "claude[bot]")] | last | .body // empty' 2>/dev/null || true)
+
+          if [ -n "$CLAUDE_COMMENT" ]; then
+            echo "Found claude[bot] comment (${#CLAUDE_COMMENT} chars)"
+
+            # Extract content after the first --- separator (skip the status header)
+            COMMENT_BODY=$(echo "$CLAUDE_COMMENT" | sed -n '/^---$/,$ { /^---$/d; p; }')
+            # Trim leading blank lines and trailing whitespace/pipe artifacts
+            COMMENT_BODY=$(echo "$COMMENT_BODY" | sed -e '/./,$!d' -e 's/[[:space:]]*|[[:space:]]*$//')
+
+            if [ -n "$COMMENT_BODY" ] && [ "${#COMMENT_BODY}" -gt 50 ]; then
+              echo "Extracted comment body (${#COMMENT_BODY} chars)"
+              PR_BODY="${COMMENT_BODY}
+
+          ---
+          Resolves #${ISSUE_NUMBER}
+
+          Generated with [Claude Code](https://claude.ai/code) via \`/implement\`"
+            else
+              echo "Comment body too short or empty after extraction (${#COMMENT_BODY} chars)"
+            fi
+          else
+            echo "No claude[bot] comment found on issue #${ISSUE_NUMBER}"
+          fi
+          echo "::endgroup::"
+
+          # --- Strategy 2: Extract from Claude's execution log ---
+          if [ -z "$PR_BODY" ] && [ -n "${CLAUDE_EXECUTION_FILE:-}" ] && [ -f "${CLAUDE_EXECUTION_FILE}" ]; then
+            echo "::group::Strategy 2 — Parse Claude execution file"
             echo "File: ${CLAUDE_EXECUTION_FILE} ($(wc -c < "$CLAUDE_EXECUTION_FILE") bytes)"
 
-            # Debug: show message types present in the execution log
-            echo "Message types in execution file:"
-            jq -r '[.[].type] | group_by(.) | map("\(.[0]): \(length)") | .[]' "$CLAUDE_EXECUTION_FILE" 2>/dev/null || echo "(jq parse failed)"
-
-            # Try to extract the final result text
-            # The SDK result message may store text in .result or .content
             CLAUDE_RESPONSE=$(jq -r '
               [.[] | select(.type == "result" and .subtype == "success")]
               | last
@@ -200,30 +225,35 @@ jobs:
             ' "$CLAUDE_EXECUTION_FILE" 2>/dev/null || true)
 
             if [ -n "$CLAUDE_RESPONSE" ]; then
-              echo "Extracted Claude result text (${#CLAUDE_RESPONSE} chars)"
+              echo "Extracted result text (${#CLAUDE_RESPONSE} chars)"
 
-              # Check for PR_BODY markers (from /pr-description skill)
+              # Check for PR_BODY markers first (from /pr-description skill)
               MARKED_BODY=$(echo "$CLAUDE_RESPONSE" | sed -n '/<!-- PR_BODY_START -->/,/<!-- PR_BODY_END -->/{ /<!-- PR_BODY_START -->/d; /<!-- PR_BODY_END -->/d; p; }')
               if [ -n "$MARKED_BODY" ]; then
-                echo "Found PR_BODY markers in Claude response"
+                echo "Found PR_BODY markers in result"
                 PR_BODY="$MARKED_BODY"
+              else
+                # Use the result text as-is (it's Claude's final summary)
+                echo "Using result text as PR summary"
+                PR_BODY="## Summary
+
+          ${CLAUDE_RESPONSE}
+
+          ---
+          Resolves #${ISSUE_NUMBER}
+
+          Generated with [Claude Code](https://claude.ai/code) via \`/implement\`"
               fi
             else
-              echo "No .result/.content in final result message"
-              # Debug: dump the last result message structure (keys only)
+              echo "No result text in execution file"
               jq '[.[] | select(.type == "result")] | last | keys' "$CLAUDE_EXECUTION_FILE" 2>/dev/null || true
             fi
             echo "::endgroup::"
-          else
-            echo "No execution file available (CLAUDE_EXECUTION_FILE='${CLAUDE_EXECUTION_FILE:-unset}')"
           fi
 
-          # --- Strategy 2: Generate from issue context + git diff ---
+          # --- Strategy 3: Generate from issue context + git diff ---
           if [ -z "$PR_BODY" ]; then
-            echo "::group::Strategy 2 — Generate from git context"
-
-            ISSUE_BODY=$(gh issue view "$ISSUE_NUMBER" --json body --jq '.body' 2>/dev/null || echo "")
-            echo "Issue body: ${#ISSUE_BODY} chars"
+            echo "::group::Strategy 3 — Generate from git context"
 
             COMMITS=$(gh api "repos/${{ github.repository }}/compare/${DEFAULT_BRANCH}...${BRANCH}" \
               --jq '[.commits[].commit.message] | map("- " + split("\n")[0]) | join("\n")' 2>/dev/null || echo "")
