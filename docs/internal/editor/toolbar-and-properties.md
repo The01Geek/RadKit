@@ -20,9 +20,8 @@ The toolbar color picker is an HTML5 `<input type="color">` inside `.color-tool`
 
 1. `setColor(newValue)` updates the global toolbar color state
 2. `setActivePresetId(null)` clears any active style preset
-3. The new color is used for **future** element creation only
-
-**Current limitation:** Changing the toolbar color does NOT update the currently selected element. It only affects elements created afterwards.
+3. If an element is currently selected, `updateElementProperty(selectedId, { color: newValue })` applies the color to that element immediately
+4. The new color is also used for future element creation
 
 ### Preset Color Buttons
 
@@ -76,15 +75,15 @@ When a property is changed via the **properties panel**:
 - The element is updated
 - The toolbar state is synced to match
 
-When a property is changed via the **toolbar**:
-- Only the toolbar state variable is updated
-- The selected element is **NOT** updated (this is the current gap)
+When a property is changed via the **toolbar color picker**:
+- The toolbar state variable is updated
+- If an element is selected, the element's color is also updated via `updateElementProperty()`
 
 ### Visual flow
 
 ```
-Toolbar color change  -->  setColor()  -->  affects FUTURE elements only
-                                            (selected element NOT updated)
+Toolbar color change  -->  setColor()  -->  affects future elements
+                      -->  updateElementProperty()  -->  updates selected element (if any)
 
 Properties panel change  -->  updateElementProperty()  -->  updates element
                                                         -->  syncs toolbar state
