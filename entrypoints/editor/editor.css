@@ -1103,7 +1103,7 @@ input[type="range"]::-webkit-slider-thumb {
   padding: 12px 8px;
   border: 2px solid var(--border-main);
   border-radius: var(--radius-md);
-  background: var(--bg-base);
+  background: var(--bg-main);
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -1180,7 +1180,7 @@ input[type="range"]::-webkit-slider-thumb {
   padding: 8px;
   border: 1px solid var(--border-main);
   border-radius: var(--radius-sm);
-  background: var(--bg-base);
+  background: var(--bg-main);
   color: var(--text-main);
   font-size: 13px;
   font-family: inherit;

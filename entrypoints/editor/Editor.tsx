@@ -314,7 +314,7 @@ function Editor() {
 
     // Persist settings when they change
     useEffect(() => {
-        if (!tool || tool === 'crop' || tool === 'image' || tool === 'blur' || tool === 'stamp') return;
+        if (!tool || tool === 'crop' || tool === 'image' || tool === 'blur') return;
 
         const currentSettings = toolSettingsRef.current[tool] || {};
         const newSettings: Partial<DrawingElement> = { ...currentSettings };
@@ -876,6 +876,10 @@ function Editor() {
                 if (el.shadowColor) setShadowColor(el.shadowColor);
                 if (el.letterSpacing !== undefined) setLetterSpacing(el.letterSpacing);
                 if (el.lineHeight !== undefined) setLineHeight(el.lineHeight);
+            }
+
+            if (el.type === 'stamp' && el.stampType) {
+                setStampType(el.stampType);
             }
 
         }
