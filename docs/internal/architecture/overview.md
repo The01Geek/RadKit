@@ -39,7 +39,7 @@ RadKit is a browser extension built with the [WXT](https://wxt.dev/) framework, 
 | Technology | Purpose | Entry point |
 |-----------|---------|-------------|
 | WXT | Extension framework, dev server, build tooling | `wxt.config.ts` |
-| React 19 | UI for popup and editor | `entrypoints/popup/`, `entrypoints/editor/` |
+| React 19 | UI for popup, editor, and options page | `entrypoints/popup/`, `entrypoints/editor/`, `entrypoints/options/` |
 | Konva / react-konva | 2D canvas for the annotation editor | `entrypoints/editor/Editor.tsx` |
 | TypeScript | Type safety across the codebase | `tsconfig.json` |
 
@@ -52,12 +52,15 @@ Declared in `wxt.config.ts` → `manifest.permissions`:
 - `scripting` — inject content scripts dynamically for selection and full-page capture
 - `unlimitedStorage` — support large full-page screenshots (data URLs can be 10+ MB)
 
+Additionally, `optional_host_permissions: ['*://*/*']` is declared in the manifest. This is **not** granted at install time — it is requested dynamically via `browser.permissions.request()` only when the user configures an S3 endpoint in the options page.
 
 Note: Screen/window capture uses `getDisplayMedia` in a popup extension window (`capture.html`), which requires no special permissions beyond the standard web API. The `desktopCapture` and `offscreen` permissions have been removed.
 
 ## Privacy Model
 
-RadKit makes **zero external network requests**. All fonts are bundled locally (`assets/fonts/`), all processing happens in-browser, and no analytics or telemetry is included. This is a core design constraint, not a feature toggle.
+RadKit makes **zero external network requests by default**. All fonts are bundled locally (`assets/fonts/`), all processing happens in-browser, and no analytics or telemetry is included.
+
+**Opt-in S3 sharing:** Users may optionally configure S3-compatible credentials (via the options page at `entrypoints/options/`) to upload screenshots to their own storage. When configured, the Share button in the editor uploads images directly to the user's S3-compatible endpoint. No data is sent to any Radkit-operated service. Host permissions for the S3 endpoint are requested dynamically at runtime — they are not granted at install time.
 
 ## File Structure
 
@@ -71,12 +74,20 @@ entrypoints/
 │   ├── main.tsx
 │   ├── App.tsx
 │   └── App.css
+├── options/             # Settings / options page
+│   ├── index.html
+│   ├── main.tsx
+│   ├── Options.tsx       # S3 credentials form
+│   └── options.css
 └── editor/              # Annotation editor
     ├── index.html
     ├── main.tsx
     ├── Editor.tsx        # Main editor component (1600+ lines)
     ├── editor.css
     └── Icons.tsx         # SVG icon components
+lib/
+├── s3.ts                # S3-compatible upload client (SigV4 signing)
+└── storage.ts           # S3 credentials storage utilities
 assets/
 ├── fonts/               # Bundled Inter font files
 ├── icon.png
