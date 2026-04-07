@@ -15,6 +15,7 @@ export default defineConfig({
       128: 'icon/128.png',
     },
     permissions: ['activeTab', 'storage', 'scripting', 'unlimitedStorage'],
+    optional_host_permissions: ['*://*/*'],
     commands: {
       'capture-visible': {
         suggested_key: {

@@ -8,8 +8,10 @@ import {
     IconCircle, IconType, IconBlur, IconTrash, IconEye,
     IconEyeOff, IconPlus, IconMinus, IconRotateCcw, IconCheck, IconClose,
     IconAlert, IconAlignLeft, IconAlignCenter, IconAlignRight, IconCase,
-    IconBookmark, IconLayers, IconSettings, IconRefresh, IconImage
+    IconBookmark, IconLayers, IconSettings, IconRefresh, IconImage, IconShare
 } from './Icons';
+import { getS3Config, isConfigured, type S3Config } from '../../lib/s3-storage';
+import { uploadToS3 } from '../../lib/s3-client';
 
 type Tool = 'crop' | 'pencil' | 'line' | 'arrow' | 'rectangle' | 'circle' | 'text' | 'blur' | 'image';
 
@@ -215,6 +217,10 @@ function Editor() {
     const [presetNameInput, setPresetNameInput] = useState('');
     const [toasts, setToasts] = useState<Toast[]>([]);
 
+    const [s3Config, setS3Config] = useState<S3Config | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+
     const templatesRef = useRef<HTMLDivElement>(null);
 
     const toolSettingsRef = useRef<Record<Tool, Partial<DrawingElement>>>({
@@ -242,6 +248,11 @@ function Editor() {
         }, 3000);
     };
 
+
+    // Load S3 config on mount
+    useEffect(() => {
+        getS3Config().then(setS3Config);
+    }, []);
 
     // Persist settings when they change
     useEffect(() => {
@@ -1059,6 +1070,31 @@ function Editor() {
         }, 100);
     };
 
+    const handleShare = async () => {
+        const stage = stageRef.current;
+        if (!stage || !s3Config) return;
+        setSelectedId(null);
+        setIsUploading(true);
+        setUploadProgress(0);
+        setTimeout(async () => {
+            try {
+                const dataUrl = stage.toDataURL({ mimeType: 'image/png' });
+                const response = await fetch(dataUrl);
+                const blob = await response.blob();
+                const result = await uploadToS3(s3Config, blob, (progress) => {
+                    setUploadProgress(Math.round((progress.loaded / progress.total) * 100));
+                });
+                await navigator.clipboard.writeText(result.url);
+                showToast('Link copied to clipboard!', 'success');
+            } catch (err: any) {
+                showToast(`Upload failed: ${err.message || 'Unknown error'}`, 'error');
+            } finally {
+                setIsUploading(false);
+                setUploadProgress(0);
+            }
+        }, 100);
+    };
+
     const applyCrop = () => {
         if (!cropRect || !image || !stageRef.current) return;
         const x = cropRect.width < 0 ? cropRect.x + cropRect.width : cropRect.x;
@@ -1279,6 +1315,14 @@ function Editor() {
                     </div>
                     <div className="header-divider"></div>
                     <button onClick={handleCopy} title="Copy Content"><IconCopy /></button>
+                    <button
+                        onClick={handleShare}
+                        disabled={!isConfigured(s3Config) || isUploading}
+                        title={isConfigured(s3Config) ? (isUploading ? `Uploading... ${uploadProgress}%` : 'Share — upload to S3 and copy link') : 'Configure S3 in extension settings to enable sharing'}
+                        className={isUploading ? 'btn-uploading' : ''}
+                    >
+                        {isUploading ? `${uploadProgress}%` : <IconShare />}
+                    </button>
                     <button className="btn-primary" onClick={() => handleDownload('png')}>Download</button>
                     <button onClick={() => setSidebarOpen(!sidebarOpen)} title="Layers & Properties" className={sidebarOpen ? 'active' : ''}><IconLayers /></button>
                 </div>
