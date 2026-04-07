@@ -18,6 +18,8 @@ The editor is a single React component (`Editor`) that manages all state with `u
 | `zoom` | Current zoom level (starts at fit-to-viewport) |
 | `cropRect`, `isCropping` | Active crop region |
 | `presets` | Saved style presets (persisted to `chrome.storage.local`) |
+| `s3Config` | Loaded S3 credentials from `browser.storage.sync` (for Share button) |
+| `isUploading` | Whether an S3 upload is in progress |
 
 ## Drawing Elements
 
@@ -86,6 +88,7 @@ The canvas uses `react-konva`:
 
 The editor supports:
 - **Copy to clipboard** — renders the stage to a blob, writes to clipboard via `navigator.clipboard.write`
+- **Share (S3 upload)** — uploads the screenshot to the user's configured S3-compatible storage and copies the public URL to the clipboard. Requires S3 credentials to be configured via the options page (`entrypoints/options/`). The button is disabled when no valid S3 config is present. Before uploading, the editor verifies the host permission is still granted. Uses `lib/s3.ts` for SigV4-signed PUT requests.
 - **Download** — renders to PNG and triggers a download link
 - **Save** — same as download with a custom filename
 

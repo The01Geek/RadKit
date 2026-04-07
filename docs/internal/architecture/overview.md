@@ -39,7 +39,7 @@ RadKit is a browser extension built with the [WXT](https://wxt.dev/) framework, 
 | Technology | Purpose | Entry point |
 |-----------|---------|-------------|
 | WXT | Extension framework, dev server, build tooling | `wxt.config.ts` |
-| React 19 | UI for popup and editor | `entrypoints/popup/`, `entrypoints/editor/` |
+| React 19 | UI for popup, editor, and options page | `entrypoints/popup/`, `entrypoints/editor/`, `entrypoints/options/` |
 | Konva / react-konva | 2D canvas for the annotation editor | `entrypoints/editor/Editor.tsx` |
 | TypeScript | Type safety across the codebase | `tsconfig.json` |
 
