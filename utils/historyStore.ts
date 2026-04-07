@@ -56,14 +56,19 @@ export const HistoryStore = {
           };
 
           if (count >= MAX_RECORDS) {
-            // Delete the oldest entry before adding
+            // Delete oldest entries to make room
+            const toDelete = count - MAX_RECORDS + 1;
+            let deleted = 0;
             const idx = store.index('timestamp');
             const cursor = idx.openCursor(); // ascending = oldest first
             cursor.onsuccess = () => {
-              if (cursor.result) {
+              if (cursor.result && deleted < toDelete) {
                 cursor.result.delete();
+                deleted++;
+                cursor.result.continue();
+              } else {
+                doAdd();
               }
-              doAdd();
             };
             cursor.onerror = () => reject(cursor.error);
           } else {

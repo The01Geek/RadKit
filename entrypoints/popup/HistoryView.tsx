@@ -1,6 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HistoryStore, ScreenshotRecord } from '../../utils/historyStore';
 import { IconSearch, IconTrash, IconExternalLink, IconCopy, IconTag } from '../editor/Icons';
+
+function useDebounce<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+  return debounced;
+}
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -24,14 +33,15 @@ export default function HistoryView() {
   const [editingTagsId, setEditingTagsId] = useState<number | null>(null);
   const [tagInput, setTagInput] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const debouncedSearch = useDebounce(searchText, 300);
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
     try {
       let results: ScreenshotRecord[];
-      if (searchText || dateFrom || dateTo) {
+      if (debouncedSearch || dateFrom || dateTo) {
         results = await HistoryStore.search({
-          tagText: searchText || undefined,
+          tagText: debouncedSearch || undefined,
           startDate: dateFrom ? new Date(dateFrom).toISOString() : undefined,
           endDate: dateTo ? new Date(dateTo + 'T23:59:59').toISOString() : undefined,
         });
@@ -43,13 +53,14 @@ export default function HistoryView() {
       console.error('Failed to load history:', e);
     }
     setLoading(false);
-  }, [searchText, dateFrom, dateTo]);
+  }, [debouncedSearch, dateFrom, dateTo]);
 
   useEffect(() => {
     loadRecords();
   }, [loadRecords]);
 
   const handleDelete = async (id: number) => {
+    if (!confirm('Delete this screenshot? This cannot be undone.')) return;
     await HistoryStore.delete(id);
     setRecords((prev) => prev.filter((r) => r.id !== id));
   };

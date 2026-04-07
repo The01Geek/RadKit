@@ -26,12 +26,16 @@ export async function generateThumbnail(dataUrl: string): Promise<string> {
   return blobToDataUrl(thumbBlob);
 }
 
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.readAsDataURL(blob);
-  });
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  // Use arrayBuffer + btoa instead of FileReader, which is unavailable in service workers
+  const buffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
+  return `data:${blob.type};base64,${base64}`;
 }
 
 /**
