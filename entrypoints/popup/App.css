@@ -72,6 +72,27 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+.settings-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-left: 6px;
+}
+
+.settings-btn:hover {
+    color: var(--accent);
+    border-color: var(--card-hover-border);
+    background: rgba(161, 115, 254, 0.1);
+}
+
 .capture-modes {
     position: relative;
     z-index: 1;

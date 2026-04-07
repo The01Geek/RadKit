@@ -172,6 +172,9 @@ function Editor() {
     const [shadowBlur, setShadowBlur] = useState(0);
     const [shadowOffset, setShadowOffset] = useState(0);
     const [shadowColor, setShadowColor] = useState('#000000');
+    const [exportFormat, setExportFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
+    const [exportQuality, setExportQuality] = useState(0.9);
+
     const [letterSpacing, setLetterSpacing] = useState(0);
     const [lineHeight, setLineHeight] = useState(1.2);
     const [textCase, setTextCase] = useState<'none' | 'uppercase' | 'capitalize'>('none');
@@ -316,6 +319,14 @@ function Editor() {
     };
 
     useEffect(() => {
+        // Load user settings from sync storage
+        (window as any).chrome.storage.sync.get(['userSettings'], (res: { userSettings?: { exportFormat?: string; exportQuality?: number } }) => {
+            if (res?.userSettings) {
+                if (res.userSettings.exportFormat) setExportFormat(res.userSettings.exportFormat as 'png' | 'jpeg' | 'webp');
+                if (res.userSettings.exportQuality !== undefined) setExportQuality(res.userSettings.exportQuality);
+            }
+        });
+
         const loadImage = () => {
             console.log('Editor: Attempting to load captured image...');
             (window as any).chrome.storage.local.get(['capturedImage', 'stylePresets'], (result: { capturedImage?: string; stylePresets?: Preset[] }) => {
@@ -1034,14 +1045,15 @@ function Editor() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [undo, redo, selectedId, deleteElement]);
 
-    const handleDownload = (format: 'png' | 'jpeg') => {
+    const handleDownload = (format?: 'png' | 'jpeg' | 'webp') => {
         const stage = stageRef.current;
         if (!stage) return;
+        const fmt = format ?? exportFormat;
         setSelectedId(null);
         setTimeout(() => {
             const link = document.createElement('a');
-            link.download = `screenshot-${Date.now()}.${format}`;
-            link.href = stage.toDataURL({ mimeType: `image/${format}`, quality: 0.9 });
+            link.download = `screenshot-${Date.now()}.${fmt}`;
+            link.href = stage.toDataURL({ mimeType: `image/${fmt}`, quality: exportQuality });
             link.click();
         }, 100);
     };
@@ -1279,7 +1291,7 @@ function Editor() {
                     </div>
                     <div className="header-divider"></div>
                     <button onClick={handleCopy} title="Copy Content"><IconCopy /></button>
-                    <button className="btn-primary" onClick={() => handleDownload('png')}>Download</button>
+                    <button className="btn-primary" onClick={() => handleDownload()}>Download</button>
                     <button onClick={() => setSidebarOpen(!sidebarOpen)} title="Layers & Properties" className={sidebarOpen ? 'active' : ''}><IconLayers /></button>
                 </div>
             </header>
