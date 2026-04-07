@@ -11,7 +11,7 @@ The editor is a single React component (`Editor`) that manages all state with `u
 | State | Purpose |
 |-------|---------|
 | `image`, `imageData` | The captured screenshot loaded from `chrome.storage.local` |
-| `tool` | Current drawing tool: `crop`, `pencil`, `line`, `arrow`, `rectangle`, `circle`, `text`, `blur`, `image` |
+| `tool` | Current drawing tool: `crop`, `pencil`, `line`, `arrow`, `rectangle`, `circle`, `text`, `blur`, `image`, `stamp-step`, `stamp-callout` |
 | `elements` | Array of `DrawingElement` objects on the canvas |
 | `selectedId` | Currently selected element for transformation |
 | `history`, `historyIndex` | Undo/redo stack (array of element snapshots) |
@@ -36,6 +36,8 @@ interface DrawingElement {
     filled?: boolean;            // For shapes
     visible: boolean;            // Toggle visibility
     name: string;                // Display name in layers panel
+    stampNumber?: number;        // For stamp-step
+    stampBodyText?: string;      // For stamp-callout
     // Advanced: opacity, dash, fontFamily, fontSize, shadows, etc.
 }
 ```
@@ -53,6 +55,8 @@ interface DrawingElement {
 | Text | Text label | Click to place, type directly on the canvas (inline editing). Double-click existing text to edit. |
 | Blur | Pixelated region | Click-drag to define blur area (supports all drag directions) |
 | Image | Inserted image | File picker, placed at click position |
+| Step Stamp | Numbered circle | Click to place; auto-numbers sequentially. Renders as a Konva Group (Circle + Text). |
+| Callout Stamp | Titled box with body | Click to place; editable title and body text. Renders as a Konva Group (Rect + accent bar + header + body Text). |
 
 ## Defaults
 
@@ -71,6 +75,7 @@ The canvas uses `react-konva`:
 - The `PixelatedBlur` custom component renders blur regions by downscaling and upscaling a canvas crop. Normalizes negative width/height for right-to-left drawing.
 - On mouse-up, shape elements (rectangle, circle, blur) are normalized so `x,y` is the top-left corner and `width`/`height` are positive. Line and arrow elements skip this normalization to preserve their directional points.
 - The `ImageElement` component handles inserted images
+- Stamp elements render as Konva `Group` components containing multiple shapes (Circle/Rect/Text)
 - A `Transformer` is attached to the selected element for resize/rotate handles
 
 ## Keyboard Shortcuts
@@ -80,7 +85,7 @@ The canvas uses `react-konva`:
 | `Ctrl/⌘ + Z` | Undo |
 | `Ctrl/⌘ + Shift + Z` | Redo |
 | `Delete` / `Backspace` | Delete the selected element |
-| Tool letter keys | Switch to tool (e.g., `r` for rectangle, `a` for arrow) |
+| Tool letter keys | Switch to tool (e.g., `r` for rectangle, `a` for arrow, `s` for step stamp, `k` for callout stamp) |
 
 ## Export
 
