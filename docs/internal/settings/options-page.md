@@ -1,6 +1,6 @@
 # Options / Settings Page
 
-> **Status:** Not yet implemented. This document describes the current state of configurable behavior in RadKit and identifies the gaps an options page would address.
+> **Status:** Implemented. The options page is at `entrypoints/options/` and currently provides S3-compatible credential configuration for screenshot sharing.
 
 ## Current State
 
