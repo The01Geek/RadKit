@@ -32,7 +32,8 @@ RadKit is a browser extension built with the [WXT](https://wxt.dev/) framework, 
 2. **Popup sends message** — `{ type: 'capture', mode: 'visible' | 'selection' | 'fullpage' | 'desktop' }` to the background script via `browser.runtime.sendMessage`.
 3. **Background script captures** — uses `chrome.tabs.captureVisibleTab` (visible/full-page), injects the content script for area selection, or opens a popup window with `getDisplayMedia` for screen/window capture.
 4. **Image stored** — the captured data URL is saved to `browser.storage.local` under the `capturedImage` key.
-5. **Editor opens** — a new tab is created at `/editor.html`, which reads the image from storage and renders it on a Konva stage.
+5. **History saved** — the image is also saved to IndexedDB (`radkit-history` database) with a generated JPEG thumbnail, capture metadata (mode, URL, title, timestamp), and empty tags. This step is non-blocking — failures are logged but do not prevent the editor from opening.
+6. **Editor opens** — a new tab is created at `/editor.html`, which reads the image from storage and renders it on a Konva stage. The editor can also load images from IndexedDB history when opened with a `screenshotId` query parameter.
 
 ## Key Technologies
 
@@ -50,7 +51,7 @@ Declared in `wxt.config.ts` → `manifest.permissions`:
 - `activeTab` — access the currently active tab for capture
 - `storage` — persist captured images and style presets
 - `scripting` — inject content scripts dynamically for selection and full-page capture
-- `unlimitedStorage` — support large full-page screenshots (data URLs can be 10+ MB)
+- `unlimitedStorage` — support large full-page screenshots and IndexedDB history storage
 
 
 Note: Screen/window capture uses `getDisplayMedia` in a popup extension window (`capture.html`), which requires no special permissions beyond the standard web API. The `desktopCapture` and `offscreen` permissions have been removed.
@@ -63,13 +64,17 @@ RadKit makes **zero external network requests**. All fonts are bundled locally (
 
 ```
 entrypoints/
-├── background.ts        # Service worker — capture orchestration
+├── background.ts        # Service worker — capture orchestration + history saving
 ├── content.ts           # Content script — area selection overlay
 ├── selection.css         # Styles for the selection UI
+├── lib/                 # Shared utilities
+│   ├── historyStore.ts  # IndexedDB screenshot history storage
+│   └── thumbnailGenerator.ts  # Thumbnail generation and blob/data URL conversion
 ├── popup/               # Extension popup
 │   ├── index.html
 │   ├── main.tsx
-│   ├── App.tsx
+│   ├── App.tsx          # Tab toggle between Capture and History views
+│   ├── HistoryView.tsx  # History browsing UI with search, tags, and actions
 │   └── App.css
 └── editor/              # Annotation editor
     ├── index.html

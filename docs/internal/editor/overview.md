@@ -10,7 +10,7 @@ The editor is a single React component (`Editor`) that manages all state with `u
 
 | State | Purpose |
 |-------|---------|
-| `image`, `imageData` | The captured screenshot loaded from `chrome.storage.local` |
+| `image`, `imageData` | The captured screenshot loaded from `chrome.storage.local` or IndexedDB history (when opened via `screenshotId` query parameter) |
 | `tool` | Current drawing tool: `crop`, `pencil`, `line`, `arrow`, `rectangle`, `circle`, `text`, `blur`, `image` |
 | `elements` | Array of `DrawingElement` objects on the canvas |
 | `selectedId` | Currently selected element for transformation |
@@ -90,3 +90,12 @@ The editor supports:
 - **Save** — same as download with a custom filename
 
 All export functions use `stageRef.current.toBlob()` or `stageRef.current.toDataURL()`.
+
+## Image Loading
+
+The editor supports two image sources:
+
+1. **Fresh captures** (default): Reads the image from `chrome.storage.local` under the `capturedImage` key. This is the standard flow after any new capture.
+2. **History re-opens**: When the URL contains a `screenshotId` query parameter (e.g., `editor.html?screenshotId=42`), the editor loads the full-resolution image from IndexedDB via `HistoryStore.getById()` and converts it to a data URL with `blobToDataUrl()`. This path is used when opening a past capture from the popup's History tab.
+
+Both paths converge on the shared `applyImageDataUrl()` helper, which handles image decoding, canvas sizing, zoom fitting, and error states.

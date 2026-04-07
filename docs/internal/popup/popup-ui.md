@@ -5,8 +5,12 @@ The extension popup (`entrypoints/popup/`) is a React app shown when the user cl
 ## Layout
 
 - **Header**: "RadKit" brand name with purple accent on "Kit", plus an "Alt+S" shortcut hint badge
-- **5 capture cards**: Stacked vertically, each with an icon and label/description
+- **Tab toggle**: Two-button toggle to switch between "Capture" and "History" views
+- **Capture tab** (default): 5 capture mode cards stacked vertically
+- **History tab**: Browsable grid of past captures (see [Screenshot History](screenshot-history.md))
 - **Status bar**: Shown during capture with a pulsing dot animation
+
+The active tab is tracked via `activeTab` state (`PopupTab` type: `'capture' | 'history'`).
 
 ## Capture Cards
 
@@ -41,10 +45,11 @@ Defined in `entrypoints/popup/App.css`:
 |------|---------|
 | `entrypoints/popup/index.html` | HTML shell for the popup |
 | `entrypoints/popup/main.tsx` | React entry point |
-| `entrypoints/popup/App.tsx` | Main component (~100 lines) |
-| `entrypoints/popup/App.css` | All popup styles |
+| `entrypoints/popup/App.tsx` | Main component with tab toggle between Capture and History views |
+| `entrypoints/popup/HistoryView.tsx` | History browsing component (see [Screenshot History](screenshot-history.md)) |
+| `entrypoints/popup/App.css` | All popup styles (including history view styles) |
 | `entrypoints/popup/style.css` | Minimal global resets |
 
 ## Icons
 
-The popup imports icon components from `entrypoints/editor/Icons.tsx` (`IconMonitor`, `IconSelection`, `IconFile`, `IconTimer`, `IconDesktop`). These are shared with the editor to maintain visual consistency.
+The popup imports icon components from `entrypoints/editor/Icons.tsx` (`IconMonitor`, `IconSelection`, `IconFile`, `IconTimer`, `IconDesktop`, `IconClock`). The History tab uses `IconClock` for the tab button. The `HistoryView` component uses additional icons: `IconSearch`, `IconTag`, `IconExternalLink`, `IconCopy`, `IconTrash`, `IconCamera`.
