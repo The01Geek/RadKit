@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { type UserSettings, DEFAULT_SETTINGS, loadSettings, saveSettings } from '../../utils/settings';
 
 type ExportFormat = UserSettings['exportFormat'];
@@ -6,22 +6,43 @@ type ExportFormat = UserSettings['exportFormat'];
 function Options() {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    loadSettings().then((s) => {
-      setSettings(s);
-      setLoading(false);
-    });
+    loadSettings()
+      .then((s) => {
+        setSettings(s);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+        setLoadError(true);
+      });
   }, []);
+
+  const persistSettings = (next: UserSettings) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveSettings(next)
+        .then(() => {
+          setSaveError(false);
+          setSaved(true);
+          setTimeout(() => setSaved(false), 1500);
+        })
+        .catch(() => {
+          setSaveError(true);
+          setTimeout(() => setSaveError(false), 3000);
+        });
+    }, 400);
+  };
 
   const update = <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => {
     const next = { ...settings, [key]: value };
     setSettings(next);
-    saveSettings(next).then(() => {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
-    });
+    persistSettings(next);
   };
 
   if (loading) {
@@ -37,7 +58,12 @@ function Options() {
       <header className="options-header">
         <h1>Rad<span className="brand-accent">Kit</span> Settings</h1>
         {saved && <span className="save-indicator">Saved</span>}
+        {saveError && <span className="save-indicator error">Save failed</span>}
       </header>
+
+      {loadError && (
+        <p className="load-error">Could not load saved settings. Showing defaults.</p>
+      )}
 
       {/* Export Format */}
       <section className="options-section">
@@ -115,8 +141,7 @@ function Options() {
         {settings.s3Enabled && (
           <div className="s3-fields">
             <p className="s3-warning">
-              Credentials are stored locally in your browser's sync storage.
-              They are never sent to RadKit servers.
+              Credentials are stored locally on this device only and are never sent to RadKit servers.
             </p>
             <label className="field-group">
               <span>Endpoint URL</span>

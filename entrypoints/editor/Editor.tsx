@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useLayoutEffect } from
 import { Stage, Layer, Image as KonvaImage, Line, Arrow, Rect, Ellipse, Text, Transformer } from 'react-konva';
 import Konva from 'konva';
 import './editor.css';
+import { loadSettings } from '../../utils/settings';
 import {
     IconUndo, IconRedo, IconCopy, IconSave, IconDownload,
     IconCrop, IconPencil, IconLine, IconArrow, IconSquare,
@@ -319,12 +320,10 @@ function Editor() {
     };
 
     useEffect(() => {
-        // Load user settings from sync storage
-        (window as any).chrome.storage.sync.get(['userSettings'], (res: { userSettings?: { exportFormat?: string; exportQuality?: number } }) => {
-            if (res?.userSettings) {
-                if (res.userSettings.exportFormat) setExportFormat(res.userSettings.exportFormat as 'png' | 'jpeg' | 'webp');
-                if (res.userSettings.exportQuality !== undefined) setExportQuality(res.userSettings.exportQuality);
-            }
+        // Load user settings from storage (sync + local)
+        loadSettings().then((s) => {
+            setExportFormat(s.exportFormat);
+            setExportQuality(s.exportQuality);
         });
 
         const loadImage = () => {

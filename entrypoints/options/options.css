@@ -67,6 +67,22 @@ body {
   animation: fadeIn 0.2s ease;
 }
 
+.save-indicator.error {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.load-error {
+  font-size: 13px;
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.15);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }

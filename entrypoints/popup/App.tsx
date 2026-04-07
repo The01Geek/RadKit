@@ -38,7 +38,7 @@ function App() {
                 <span className="shortcut-hint">Alt+S</span>
                 <button
                     className="settings-btn"
-                    onClick={() => chrome.runtime.openOptionsPage()}
+                    onClick={() => browser.runtime.openOptionsPage()}
                     title="Settings"
                 >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
