@@ -86,7 +86,11 @@ The canvas uses `react-konva`:
 
 The editor supports:
 - **Copy to clipboard** — renders the stage to a blob, writes to clipboard via `navigator.clipboard.write`
-- **Download** — renders to PNG and triggers a download link
+- **Download** — renders to the user's configured export format (PNG, JPEG, or WebP) and quality, then triggers a download link. Format and quality default to values loaded from `loadSettings()` on editor mount, but `handleDownload` accepts an optional format override.
 - **Save** — same as download with a custom filename
 
 All export functions use `stageRef.current.toBlob()` or `stageRef.current.toDataURL()`.
+
+### Settings Integration
+
+On mount, the editor calls `loadSettings()` from `entrypoints/lib/settings.ts` to populate `exportFormat` and `exportQuality` state. These values are used as defaults by `handleDownload`. Users configure these in the Options page (`entrypoints/options/`).
