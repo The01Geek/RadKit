@@ -379,9 +379,18 @@ function Editor() {
         setTimeout(loadImage, 1000);
     }, []);
 
-    // Load S3 config for Share button
+    // Load S3 config for Share button and listen for changes
     useEffect(() => {
-        loadS3Config().then(setS3Config);
+        loadS3Config().then(setS3Config).catch((err) => {
+            console.error('Failed to load S3 config:', err);
+        });
+        const listener = (changes: Record<string, any>) => {
+            if (changes.s3Config) {
+                loadS3Config().then(setS3Config).catch(() => {});
+            }
+        };
+        browser.storage.onChanged.addListener(listener);
+        return () => browser.storage.onChanged.removeListener(listener);
     }, []);
 
     // Proactive Font Loading
@@ -1073,8 +1082,24 @@ function Editor() {
             showToast('Configure S3 settings in the extension options to share.', 'error');
             return;
         }
+        // Verify host permission is still granted
+        try {
+            const url = new URL(s3Config.endpoint);
+            const origin = `${url.protocol}//${url.host}/*`;
+            const hasPermission = await browser.permissions.contains({ origins: [origin] });
+            if (!hasPermission) {
+                showToast('Permission to access your S3 endpoint was revoked. Please re-save your settings in the options page.', 'error');
+                return;
+            }
+        } catch {
+            showToast('Invalid S3 endpoint URL. Check your settings.', 'error');
+            return;
+        }
         const stage = stageRef.current;
-        if (!stage) return;
+        if (!stage) {
+            showToast('Editor not ready. Please try again.', 'error');
+            return;
+        }
         setSelectedId(null);
         setIsUploading(true);
         showToast('Uploading...', 'info');
@@ -1082,8 +1107,12 @@ function Editor() {
             try {
                 const blob = await (await fetch(stage.toDataURL())).blob();
                 const result = await uploadToS3(toS3Config(s3Config), blob);
-                await navigator.clipboard.writeText(result.url);
-                showToast('Uploaded! Link copied to clipboard.', 'success');
+                try {
+                    await navigator.clipboard.writeText(result.url);
+                    showToast('Uploaded! Link copied to clipboard.', 'success');
+                } catch {
+                    showToast(`Uploaded! URL: ${result.url}`, 'info');
+                }
             } catch (err) {
                 showToast(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
             } finally {

@@ -20,14 +20,19 @@ export default function Options() {
   const [savedSecretKey, setSavedSecretKey] = useState('');
 
   useEffect(() => {
-    loadS3Config().then((saved) => {
-      setConfig(saved);
-      if (saved.secretAccessKey) {
-        setSavedSecretKey(saved.secretAccessKey);
-        setSecretMasked(true);
-      }
-      setLoaded(true);
-    });
+    loadS3Config()
+      .then((saved) => {
+        setConfig(saved);
+        if (saved.secretAccessKey) {
+          setSavedSecretKey(saved.secretAccessKey);
+          setSecretMasked(true);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load S3 config:', err);
+        setStatus({ type: 'error', message: 'Failed to load saved settings. You can re-enter your configuration.' });
+      })
+      .finally(() => setLoaded(true));
   }, []);
 
   const handleChange = (field: keyof StoredS3Config, value: string) => {
@@ -45,8 +50,19 @@ export default function Options() {
       configToSave.secretAccessKey = savedSecretKey;
     }
 
-    if (!configToSave.endpoint || !configToSave.bucket || !configToSave.accessKeyId || !configToSave.secretAccessKey) {
+    if (!configToSave.endpoint || !configToSave.bucket || !configToSave.region || !configToSave.accessKeyId || !configToSave.secretAccessKey) {
       setStatus({ type: 'error', message: 'Please fill in all required fields.' });
+      return;
+    }
+
+    try {
+      const url = new URL(configToSave.endpoint);
+      if (url.protocol !== 'https:') {
+        setStatus({ type: 'error', message: 'Endpoint must use HTTPS to protect your credentials in transit.' });
+        return;
+      }
+    } catch {
+      setStatus({ type: 'error', message: 'Invalid endpoint URL.' });
       return;
     }
 
@@ -77,7 +93,12 @@ export default function Options() {
     }
 
     // Save
-    await saveS3Config(configToSave);
+    try {
+      await saveS3Config(configToSave);
+    } catch (err) {
+      setStatus({ type: 'error', message: `Failed to save settings: ${err instanceof Error ? err.message : 'Unknown error'}` });
+      return;
+    }
     setSavedSecretKey(configToSave.secretAccessKey);
     setSecretMasked(true);
     setConfig((prev) => ({ ...prev, secretAccessKey: configToSave.secretAccessKey }));
@@ -85,7 +106,12 @@ export default function Options() {
   };
 
   const handleClear = async () => {
-    await clearS3Config();
+    try {
+      await clearS3Config();
+    } catch (err) {
+      setStatus({ type: 'error', message: `Failed to clear settings: ${err instanceof Error ? err.message : 'Unknown error'}` });
+      return;
+    }
     setConfig({
       endpoint: '',
       bucket: '',

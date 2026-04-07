@@ -34,8 +34,8 @@ async function hmacSHA256(key: ArrayBuffer, data: string): Promise<ArrayBuffer> 
 }
 
 async function sha256(data: ArrayBuffer | string): Promise<string> {
-  const buffer =
-    typeof data === 'string' ? encoder.encode(data).buffer : data;
+  const buffer: BufferSource =
+    typeof data === 'string' ? encoder.encode(data) : data;
   const hash = await crypto.subtle.digest('SHA-256', buffer);
   return hexEncode(hash);
 }
@@ -68,10 +68,60 @@ function toAmzDate(date: Date): string {
 }
 
 function uriEncode(str: string): string {
-  return encodeURIComponent(str).replace(/%2F/g, '/');
+  return encodeURIComponent(str).replace(/%2F/g, '/').replace(/%7E/g, '~');
 }
 
-// --- Upload ---
+// --- Shared SigV4 signing ---
+
+async function signRequest(
+  method: string,
+  url: string,
+  headers: Record<string, string>,
+  payloadHash: string,
+  config: S3Config,
+): Promise<void> {
+  const now = new Date();
+  const dateStamp = toDateStamp(now);
+  const amzDate = toAmzDate(now);
+
+  headers['x-amz-content-sha256'] = payloadHash;
+  headers['x-amz-date'] = amzDate;
+  headers['Host'] = new URL(url).host;
+
+  const parsedUrl = new URL(url);
+  const canonicalUri = uriEncode(parsedUrl.pathname) || '/';
+  const signedHeaderKeys = Object.keys(headers)
+    .map((k) => k.toLowerCase())
+    .sort();
+  const signedHeaders = signedHeaderKeys.join(';');
+  const canonicalHeaders =
+    signedHeaderKeys.map((k) => `${k}:${headers[Object.keys(headers).find((h) => h.toLowerCase() === k)!].trim()}`).join('\n') + '\n';
+
+  const canonicalRequest = [
+    method,
+    canonicalUri,
+    '', // query string
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join('\n');
+
+  const credentialScope = `${dateStamp}/${config.region}/s3/aws4_request`;
+  const stringToSign = [
+    'AWS4-HMAC-SHA256',
+    amzDate,
+    credentialScope,
+    await sha256(canonicalRequest),
+  ].join('\n');
+
+  const signingKey = await getSignatureKey(config.secretAccessKey, dateStamp, config.region, 's3');
+  const signature = hexEncode(await hmacSHA256(signingKey, stringToSign));
+
+  headers['Authorization'] =
+    `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+}
+
+// --- Key generation and URL ---
 
 export function generateObjectKey(prefix?: string): string {
   const timestamp = Date.now();
@@ -86,91 +136,43 @@ export function generateObjectKey(prefix?: string): string {
 
 export function getPublicUrl(config: S3Config, key: string): string {
   const endpoint = config.endpoint.replace(/\/+$/, '');
-
-  // Path-style: endpoint/bucket/key
   return `${endpoint}/${config.bucket}/${key}`;
 }
+
+// --- Upload ---
 
 export async function uploadToS3(
   config: S3Config,
   blob: Blob,
-  onProgress?: (loaded: number, total: number) => void,
 ): Promise<UploadResult> {
   const key = generateObjectKey(config.pathPrefix);
   const endpoint = config.endpoint.replace(/\/+$/, '');
   const url = `${endpoint}/${config.bucket}/${key}`;
   const body = await blob.arrayBuffer();
-
-  const now = new Date();
-  const dateStamp = toDateStamp(now);
-  const amzDate = toAmzDate(now);
   const payloadHash = await sha256(body);
 
   const headers: Record<string, string> = {
-    'Content-Type': 'image/png',
+    'Content-Type': blob.type || 'image/png',
     'Content-Disposition': 'inline',
-    'x-amz-content-sha256': payloadHash,
-    'x-amz-date': amzDate,
-    Host: new URL(url).host,
   };
 
   if (config.acl) {
     headers['x-amz-acl'] = config.acl;
   }
 
-  // Canonical request
-  const parsedUrl = new URL(url);
-  const canonicalUri = uriEncode(parsedUrl.pathname);
-  const canonicalQuerystring = '';
-  const signedHeaderKeys = Object.keys(headers)
-    .map((k) => k.toLowerCase())
-    .sort();
-  const signedHeaders = signedHeaderKeys.join(';');
-  const canonicalHeaders =
-    signedHeaderKeys.map((k) => `${k}:${headers[Object.keys(headers).find((h) => h.toLowerCase() === k)!].trim()}`).join('\n') + '\n';
+  await signRequest('PUT', url, headers, payloadHash, config);
 
-  const canonicalRequest = [
-    'PUT',
-    canonicalUri,
-    canonicalQuerystring,
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash,
-  ].join('\n');
-
-  // String to sign
-  const credentialScope = `${dateStamp}/${config.region}/s3/aws4_request`;
-  const stringToSign = [
-    'AWS4-HMAC-SHA256',
-    amzDate,
-    credentialScope,
-    await sha256(canonicalRequest),
-  ].join('\n');
-
-  // Signature
-  const signingKey = await getSignatureKey(config.secretAccessKey, dateStamp, config.region, 's3');
-  const signature = hexEncode(await hmacSHA256(signingKey, stringToSign));
-
-  // Authorization header
-  headers['Authorization'] =
-    `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-
-  // Signal progress start
-  onProgress?.(0, blob.size);
-
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers,
-    body,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, { method: 'PUT', headers, body });
+  } catch {
+    throw new Error(`Network error: Could not reach "${new URL(url).host}". Check that the endpoint URL is correct and accessible.`);
+  }
 
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`S3 upload failed (${response.status}): ${text}`);
   }
-
-  // Signal progress complete
-  onProgress?.(blob.size, blob.size);
 
   return { url: getPublicUrl(config, key), key };
 }
@@ -181,55 +183,18 @@ export async function uploadToS3(
 export async function validateS3Connection(config: S3Config): Promise<void> {
   const endpoint = config.endpoint.replace(/\/+$/, '');
   const url = `${endpoint}/${config.bucket}`;
-
-  const now = new Date();
-  const dateStamp = toDateStamp(now);
-  const amzDate = toAmzDate(now);
   const payloadHash = await sha256('');
 
-  const headers: Record<string, string> = {
-    'x-amz-content-sha256': payloadHash,
-    'x-amz-date': amzDate,
-    Host: new URL(url).host,
-  };
+  const headers: Record<string, string> = {};
 
-  const parsedUrl = new URL(url);
-  const canonicalUri = uriEncode(parsedUrl.pathname) || '/';
-  const canonicalQuerystring = '';
-  const signedHeaderKeys = Object.keys(headers)
-    .map((k) => k.toLowerCase())
-    .sort();
-  const signedHeaders = signedHeaderKeys.join(';');
-  const canonicalHeaders =
-    signedHeaderKeys.map((k) => `${k}:${headers[Object.keys(headers).find((h) => h.toLowerCase() === k)!].trim()}`).join('\n') + '\n';
+  await signRequest('HEAD', url, headers, payloadHash, config);
 
-  const canonicalRequest = [
-    'HEAD',
-    canonicalUri,
-    canonicalQuerystring,
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash,
-  ].join('\n');
-
-  const credentialScope = `${dateStamp}/${config.region}/s3/aws4_request`;
-  const stringToSign = [
-    'AWS4-HMAC-SHA256',
-    amzDate,
-    credentialScope,
-    await sha256(canonicalRequest),
-  ].join('\n');
-
-  const signingKey = await getSignatureKey(config.secretAccessKey, dateStamp, config.region, 's3');
-  const signature = hexEncode(await hmacSHA256(signingKey, stringToSign));
-
-  headers['Authorization'] =
-    `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-
-  const response = await fetch(url, {
-    method: 'HEAD',
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, { method: 'HEAD', headers });
+  } catch {
+    throw new Error(`Network error: Could not reach "${new URL(url).host}". Check that the endpoint URL is correct and accessible.`);
+  }
 
   if (!response.ok) {
     throw new Error(`Connection failed (${response.status}): Unable to access bucket "${config.bucket}"`);
