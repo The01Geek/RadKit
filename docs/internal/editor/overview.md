@@ -86,6 +86,7 @@ The canvas uses `react-konva`:
 
 The editor supports:
 - **Copy to clipboard** — renders the stage to a blob, writes to clipboard via `navigator.clipboard.write`
+- **Share (S3 upload)** — uploads the rendered PNG to the user's configured S3-compatible storage and copies the public URL to the clipboard. The Share button is disabled when S3 is not configured (`isConfigured(s3Config)` returns `false`). During upload, the button shows a percentage progress indicator. Uses `uploadToS3()` from `lib/s3-client.ts` with SigV4 signing. S3 credentials are loaded from `browser.storage.sync` on mount via `getS3Config()` (`lib/s3-storage.ts`). See `docs/internal/settings/options-page.md` for configuration details.
 - **Download** — renders to PNG and triggers a download link
 - **Save** — same as download with a custom filename
 
