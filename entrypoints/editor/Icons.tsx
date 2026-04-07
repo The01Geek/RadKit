@@ -271,6 +271,21 @@ export const IconImage = () => (
     </svg>
 );
 
+export const IconStampStep = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <text x="12" y="16" textAnchor="middle" fontSize="13" fontWeight="bold" stroke="none" fill="currentColor">1</text>
+    </svg>
+);
+
+export const IconStampCallout = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="4" width="20" height="14" rx="3" />
+        <line x1="5" y1="9" x2="14" y2="9" />
+        <line x1="5" y1="13" x2="12" y2="13" />
+    </svg>
+);
+
 export const IconTimer = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="13" r="8" />
