@@ -56,9 +56,13 @@ export default defineBackground(() => {
     }
   });
 
+  // Tracks whether the last selection capture used "Done" mode (skip editor)
+  let lastSelectionMode: 'done' | 'edit' | undefined;
+
   async function handleCapture(mode: string): Promise<{ success: boolean; error?: string }> {
     try {
       let imageDataUrl: string;
+      lastSelectionMode = undefined;
 
       switch (mode) {
         case 'visible':
@@ -99,7 +103,25 @@ export default defineBackground(() => {
       await browser.storage.local.set({ screenshots });
 
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-      await browser.tabs.create({ url: browser.runtime.getURL('/editor.html') });
+
+      // "Done" mode: save without opening editor
+      if (lastSelectionMode === 'done') {
+        // Download the image directly
+        try {
+          const filename = `radkit-screenshot-${Date.now()}.png`;
+          await chrome.downloads.download({
+            url: imageDataUrl,
+            filename,
+            saveAs: false,
+          });
+        } catch (e) {
+          console.warn('Auto-download failed, falling back to editor:', e);
+          await browser.tabs.create({ url: browser.runtime.getURL('/editor.html') });
+        }
+      } else {
+        await browser.tabs.create({ url: browser.runtime.getURL('/editor.html') });
+      }
+
       await broadcastCleanup(tab?.id);
 
       return { success: true };
@@ -220,19 +242,23 @@ export default defineBackground(() => {
     });
   }
 
+  interface SelectionResult {
+    rect: TabRect;
+    annotations?: any[];
+    mode?: 'done' | 'edit';
+  }
+
   async function captureWithSelection(): Promise<string> {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) throw new Error('No active tab');
 
     const possiblePaths = ['content-scripts/content.js', 'content.js'];
-    let injected = false;
     for (const path of possiblePaths) {
       try {
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           files: [path],
         });
-        injected = true;
         break;
       } catch (e) { }
     }
@@ -245,7 +271,25 @@ export default defineBackground(() => {
       throw new Error('Could not connect to the page. Please refresh and try again.');
     }
 
-    const rect = await waitForSelection(tab.id);
+    // Pre-capture screenshot for annotation blur tool
+    try {
+      const preCapture = await new Promise<string>((resolve, reject) => {
+        chrome.tabs.captureVisibleTab({ format: 'png' }, (dataUrl) => {
+          if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+          else resolve(dataUrl);
+        });
+      });
+      await browser.tabs.sendMessage(tab.id, {
+        type: 'annotation-screenshot-ready',
+        dataUrl: preCapture,
+      }).catch(() => {});
+    } catch (e) {
+      // Non-critical — blur tool will show placeholder
+      console.warn('Pre-capture for annotation failed:', e);
+    }
+
+    const result = await waitForSelection(tab.id);
+    lastSelectionMode = result.mode;
     await new Promise(resolve => setTimeout(resolve, 300));
 
     const fullDataUrl = await new Promise<string>((resolve, reject) => {
@@ -261,10 +305,54 @@ export default defineBackground(() => {
       );
     });
 
-    return await cropImage(fullDataUrl, rect, tab.id);
+    const croppedImage = await cropImage(fullDataUrl, result.rect, tab.id);
+
+    // Handle annotation transfer for "Edit" mode
+    if (result.annotations && result.annotations.length > 0 && result.mode === 'edit') {
+      // Scale annotations by DPR for the Konva editor
+      const dprResult = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => window.devicePixelRatio || 1,
+      });
+      // @ts-ignore
+      const dpr = dprResult?.[0]?.result || 1;
+
+      const drawingElements = result.annotations.map((el: any, index: number) => ({
+        id: el.id,
+        type: el.type,
+        x: el.x * dpr,
+        y: el.y * dpr,
+        width: el.width !== undefined ? el.width * dpr : undefined,
+        height: el.height !== undefined ? el.height * dpr : undefined,
+        points: el.points ? el.points.map((p: number) => p * dpr) : undefined,
+        text: el.text,
+        color: el.color,
+        strokeWidth: el.strokeWidth * dpr,
+        filled: el.filled,
+        visible: el.visible,
+        name: el.name || `${el.type}-${index}`,
+        opacity: el.opacity,
+        dash: el.dash ? el.dash.map((d: number) => d * dpr) : null,
+        pointerAtStart: el.pointerAtStart,
+        fontFamily: el.fontFamily,
+        fontSize: el.fontSize ? el.fontSize * dpr : undefined,
+        bgColor: el.bgColor,
+        imageSrc: el.imageSrc,
+      }));
+
+      await browser.storage.local.set({ pendingAnnotations: drawingElements });
+    }
+
+    // Handle "Done" mode — composite annotations onto the cropped image
+    if (result.annotations && result.annotations.length > 0 && result.mode === 'done') {
+      const composited = await compositeAnnotations(croppedImage, result.annotations, result.rect, tab.id);
+      return composited;
+    }
+
+    return croppedImage;
   }
 
-  function waitForSelection(tabId: number): Promise<{ x: number; y: number; width: number; height: number }> {
+  function waitForSelection(tabId: number): Promise<SelectionResult> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         browser.runtime.onMessage.removeListener(listener);
@@ -278,13 +366,179 @@ export default defineBackground(() => {
           if (message.canceled) {
             reject(new Error('Selection canceled'));
           } else {
-            resolve(message.rect);
+            resolve({
+              rect: message.rect,
+              annotations: message.annotations,
+              mode: message.mode,
+            });
           }
         }
       };
 
       browser.runtime.onMessage.addListener(listener);
     });
+  }
+
+  async function compositeAnnotations(
+    croppedDataUrl: string,
+    annotations: any[],
+    rect: TabRect,
+    tabId: number
+  ): Promise<string> {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (croppedDataUrl: string, annotations: any[]) => {
+        return new Promise<string>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { resolve(croppedDataUrl); return; }
+
+            // Draw the cropped screenshot
+            ctx.drawImage(img, 0, 0);
+
+            // Scale factor: cropped image may be DPR-scaled
+            const dpr = window.devicePixelRatio || 1;
+            ctx.save();
+            ctx.scale(dpr, dpr);
+
+            // Replay each annotation element
+            for (const el of annotations) {
+              ctx.save();
+              ctx.globalAlpha = el.opacity ?? 1;
+              ctx.strokeStyle = el.color || '#ff0000';
+              ctx.fillStyle = el.color || '#ff0000';
+              ctx.lineWidth = el.strokeWidth || 2;
+              ctx.lineCap = 'round';
+              ctx.lineJoin = 'round';
+
+              if (el.dash && el.dash.length > 0) {
+                ctx.setLineDash(el.dash);
+              }
+
+              switch (el.type) {
+                case 'pencil': {
+                  const pts = el.points;
+                  if (pts && pts.length >= 4) {
+                    ctx.beginPath();
+                    ctx.moveTo(el.x + pts[0], el.y + pts[1]);
+                    for (let i = 2; i < pts.length; i += 2) {
+                      ctx.lineTo(el.x + pts[i], el.y + pts[i + 1]);
+                    }
+                    ctx.stroke();
+                  }
+                  break;
+                }
+                case 'line': {
+                  const pts = el.points;
+                  if (pts && pts.length >= 4) {
+                    ctx.beginPath();
+                    ctx.moveTo(el.x + pts[0], el.y + pts[1]);
+                    ctx.lineTo(el.x + pts[2], el.y + pts[3]);
+                    ctx.stroke();
+                  }
+                  break;
+                }
+                case 'arrow': {
+                  const pts = el.points;
+                  if (pts && pts.length >= 4) {
+                    const x1 = el.x + pts[0], y1 = el.y + pts[1];
+                    const x2 = el.x + pts[2], y2 = el.y + pts[3];
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.stroke();
+                    // Arrowhead
+                    const angle = Math.atan2(y2 - y1, x2 - x1);
+                    const headLen = Math.max(el.strokeWidth * 3, 12);
+                    ctx.fillStyle = el.color;
+                    ctx.beginPath();
+                    ctx.moveTo(x2, y2);
+                    ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
+                    ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+                    ctx.closePath();
+                    ctx.fill();
+                  }
+                  break;
+                }
+                case 'rectangle': {
+                  const w = el.width ?? 0;
+                  const h = el.height ?? 0;
+                  if (el.filled) ctx.fillRect(el.x, el.y, w, h);
+                  else ctx.strokeRect(el.x, el.y, w, h);
+                  break;
+                }
+                case 'circle': {
+                  const w = el.width ?? 0;
+                  const h = el.height ?? 0;
+                  ctx.beginPath();
+                  ctx.ellipse(el.x + w / 2, el.y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
+                  if (el.filled) ctx.fill();
+                  else ctx.stroke();
+                  break;
+                }
+                case 'text': {
+                  if (el.text) {
+                    const size = el.fontSize ?? 24;
+                    const family = el.fontFamily ?? 'Arial';
+                    ctx.font = `${size}px ${family}`;
+                    ctx.textBaseline = 'top';
+                    if (el.bgColor) {
+                      const metrics = ctx.measureText(el.text);
+                      ctx.save();
+                      ctx.fillStyle = el.bgColor;
+                      ctx.fillRect(el.x - 4, el.y - 4, metrics.width + 8, size + 8);
+                      ctx.restore();
+                    }
+                    ctx.fillStyle = el.color;
+                    ctx.fillText(el.text, el.x, el.y);
+                  }
+                  break;
+                }
+                case 'blur': {
+                  // Blur renders as a pixelated region from the underlying image
+                  const w = el.width ?? 0;
+                  const h = el.height ?? 0;
+                  if (w > 0 && h > 0) {
+                    const pixelSize = 10;
+                    const smallW = Math.max(1, Math.ceil(w / pixelSize));
+                    const smallH = Math.max(1, Math.ceil(h / pixelSize));
+                    const offscreen = document.createElement('canvas');
+                    offscreen.width = smallW;
+                    offscreen.height = smallH;
+                    const offCtx = offscreen.getContext('2d');
+                    if (offCtx) {
+                      // Read from the current canvas state (screenshot underneath)
+                      offCtx.drawImage(canvas, el.x * dpr, el.y * dpr, w * dpr, h * dpr, 0, 0, smallW, smallH);
+                      ctx.imageSmoothingEnabled = false;
+                      ctx.drawImage(offscreen, 0, 0, smallW, smallH, el.x, el.y, w, h);
+                      ctx.imageSmoothingEnabled = true;
+                    }
+                  }
+                  break;
+                }
+                case 'image': {
+                  // Image annotations are stored as data URLs — load synchronously not possible
+                  // Skip for composite (images will show in editor)
+                  break;
+                }
+              }
+              ctx.restore();
+            }
+
+            ctx.restore();
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.src = croppedDataUrl;
+        });
+      },
+      args: [croppedDataUrl, annotations],
+    });
+    // @ts-ignore
+    return results[0].result || croppedDataUrl;
   }
 
   interface TabRect {

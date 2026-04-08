@@ -15,6 +15,10 @@ export default defineConfig({
       128: 'icon/128.png',
     },
     permissions: ['activeTab', 'storage', 'scripting', 'unlimitedStorage', 'downloads'],
+    web_accessible_resources: [{
+      resources: ['chunks/*', 'content-scripts/*'],
+      matches: ['<all_urls>'],
+    }],
     commands: {
       'capture-visible': {
         suggested_key: {

@@ -318,7 +318,7 @@ function Editor() {
     useEffect(() => {
         const loadImage = () => {
             console.log('Editor: Attempting to load captured image...');
-            (window as any).chrome.storage.local.get(['capturedImage', 'stylePresets'], (result: { capturedImage?: string; stylePresets?: Preset[] }) => {
+            (window as any).chrome.storage.local.get(['capturedImage', 'stylePresets', 'pendingAnnotations'], (result: { capturedImage?: string; stylePresets?: Preset[]; pendingAnnotations?: DrawingElement[] }) => {
                 if ((window as any).chrome.runtime.lastError) {
                     console.error('Editor: Storage retrieval failed:', (window as any).chrome.runtime.lastError);
                     setError('Storage retrieval failed');
@@ -327,6 +327,14 @@ function Editor() {
 
                 if (result?.stylePresets) {
                     setPresets(result.stylePresets);
+                }
+
+                // Load transferred annotations from inline annotation mode
+                const pendingAnnotations = result?.pendingAnnotations;
+                if (pendingAnnotations && pendingAnnotations.length > 0) {
+                    console.log(`Editor: Found ${pendingAnnotations.length} transferred annotations from overlay`);
+                    // Clean up storage
+                    (window as any).chrome.storage.local.remove('pendingAnnotations');
                 }
 
                 if (result?.capturedImage) {
@@ -342,7 +350,14 @@ function Editor() {
 
                         const size = { width: img.width, height: img.height };
                         setStageSize(size);
-                        setHistory([{ elements: [], image: img, stageSize: size }]);
+
+                        // Merge pending annotations if available
+                        const initialElements: DrawingElement[] = pendingAnnotations && pendingAnnotations.length > 0
+                            ? pendingAnnotations.map(a => ({ ...a, visible: true }))
+                            : [];
+
+                        setElements(initialElements);
+                        setHistory([{ elements: initialElements, image: img, stageSize: size }]);
                         setHistoryIndex(0);
                         setTimeout(() => {
                             if (canvasContainerRef.current) {

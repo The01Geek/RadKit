@@ -82,9 +82,14 @@ const SELECTION_CSS = `
 }
 .screenshot-selection-btn.confirm { background: #0066ff !important; color: white !important; }
 .screenshot-selection-btn.confirm:hover { background: #0052cc !important; }
+.screenshot-selection-btn.annotate { background: #10b981 !important; color: white !important; }
+.screenshot-selection-btn.annotate:hover { background: #059669 !important; }
 .screenshot-selection-btn.cancel { background: #f1f1f2 !important; color: #333 !important; }
 .screenshot-selection-btn.cancel:hover { background: #e2e2e4 !important; }
 `;
+
+// Type for the annotation engine module (lazy-loaded)
+type AnnotationEngineModule = typeof import('./annotation/annotation-engine');
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -104,12 +109,19 @@ export default defineContentScript({
     let isResizing = false;
     let isMoving = false;
     let activeHandle: string | null = null;
+    let isAnnotating = false;
 
     let startX = 0;
     let startY = 0;
     let offsetX = 0;
     let offsetY = 0;
     let selectRect = { x: 0, y: 0, w: 0, h: 0 };
+
+    // Annotation engine (lazy-loaded)
+    let annotationEngine: import('./annotation/annotation-engine').AnnotationEngine | null = null;
+
+    // Pre-captured screenshot for blur tool (sent by background)
+    let preAnnotationScreenshot: string | null = null;
 
     function applyStyles() {
       let existingStyle = document.getElementById('screenshot-selection-styles');
@@ -129,6 +141,8 @@ export default defineContentScript({
         createSelectionOverlay();
       } else if (message.type === 'cleanup-selection') {
         cleanup();
+      } else if (message.type === 'annotation-screenshot-ready') {
+        preAnnotationScreenshot = message.dataUrl;
       }
     });
 
@@ -171,8 +185,18 @@ export default defineContentScript({
       if (!selectionBox || actions) return;
       actions = document.createElement('div');
       actions.className = 'screenshot-selection-actions';
-      actions.addEventListener('mousedown', (e) => e.stopPropagation()); // Prevent moving when clicking buttons
+      actions.addEventListener('mousedown', (e) => e.stopPropagation());
 
+      // Annotate button — lazy-loads annotation mode
+      const annotateBtn = document.createElement('button');
+      annotateBtn.className = 'screenshot-selection-btn annotate';
+      annotateBtn.textContent = '✏ Annotate';
+      annotateBtn.onclick = (e) => {
+        e.stopPropagation();
+        activateAnnotation();
+      };
+
+      // Edit button — opens full editor (existing flow)
       const confirmBtn = document.createElement('button');
       confirmBtn.className = 'screenshot-selection-btn confirm';
       confirmBtn.textContent = '✓ Edit';
@@ -194,13 +218,126 @@ export default defineContentScript({
         browser.runtime.sendMessage({ type: 'selection-complete', canceled: true });
       };
 
+      actions.appendChild(annotateBtn);
       actions.appendChild(confirmBtn);
       actions.appendChild(cancelBtn);
       selectionBox.appendChild(actions);
     }
 
+    async function activateAnnotation() {
+      if (isAnnotating) return;
+      isAnnotating = true;
+
+      // Hide the selection actions bar (replaced by annotation toolbar)
+      if (actions) {
+        actions.style.display = 'none';
+      }
+
+      // Disable selection box interaction during annotation
+      if (selectionBox) {
+        selectionBox.style.pointerEvents = 'none';
+      }
+      if (overlay) {
+        overlay.style.pointerEvents = 'none';
+      }
+
+      try {
+        // Lazy-load the annotation engine
+        const { initAnnotationMode } = await import('./annotation/annotation-engine');
+
+        annotationEngine = initAnnotationMode(
+          { ...selectRect },
+          preAnnotationScreenshot,
+          {
+            onDone: (elements) => {
+              handleAnnotationDone(elements);
+            },
+            onEdit: (elements) => {
+              handleAnnotationEdit(elements);
+            },
+            onCancel: () => {
+              exitAnnotationMode();
+            },
+          }
+        );
+      } catch (err) {
+        console.error('Failed to load annotation engine:', err);
+        isAnnotating = false;
+        if (actions) actions.style.display = '';
+        if (selectionBox) selectionBox.style.pointerEvents = 'auto';
+        if (overlay) overlay.style.pointerEvents = '';
+      }
+    }
+
+    function exitAnnotationMode() {
+      isAnnotating = false;
+      if (annotationEngine) {
+        annotationEngine.destroy();
+        annotationEngine = null;
+      }
+      // Restore selection UI
+      if (actions) {
+        actions.style.display = '';
+      }
+      if (selectionBox) {
+        selectionBox.style.pointerEvents = 'auto';
+      }
+      if (overlay) {
+        overlay.style.pointerEvents = '';
+      }
+    }
+
+    function handleAnnotationDone(elements: any[]) {
+      const rect = { x: selectRect.x, y: selectRect.y, width: selectRect.w, height: selectRect.h };
+      const annotations = elements.length > 0 ? elements : undefined;
+
+      // Hide everything before capture
+      hideOverlayForCapture();
+
+      browser.runtime.sendMessage({
+        type: 'selection-complete',
+        rect,
+        annotations,
+        mode: 'done',
+      });
+
+      // Cleanup after a short delay (background captures first)
+      setTimeout(() => cleanup(), 100);
+    }
+
+    function handleAnnotationEdit(elements: any[]) {
+      const rect = { x: selectRect.x, y: selectRect.y, width: selectRect.w, height: selectRect.h };
+      const annotations = elements.length > 0 ? elements : undefined;
+
+      // Hide everything before capture
+      hideOverlayForCapture();
+
+      browser.runtime.sendMessage({
+        type: 'selection-complete',
+        rect,
+        annotations,
+        mode: 'edit',
+      });
+
+      setTimeout(() => cleanup(), 100);
+    }
+
+    function hideOverlayForCapture() {
+      // Hide annotation engine UI
+      if (annotationEngine) {
+        annotationEngine.destroy();
+        annotationEngine = null;
+      }
+      // Hide selection overlay
+      if (overlay) overlay.style.display = 'none';
+      const annotationCanvas = document.getElementById('screenshot-annotation-canvas');
+      if (annotationCanvas) annotationCanvas.style.display = 'none';
+      const annotationHost = document.getElementById('screenshot-annotation-host');
+      if (annotationHost) annotationHost.style.display = 'none';
+    }
+
     function handleMouseDown(e: MouseEvent) {
-      if (actions) return; // Don't restart if we already have a selection
+      if (actions || isAnnotating) return;
       isSelecting = true;
       startX = e.clientX;
       startY = e.clientY;
@@ -211,9 +348,8 @@ export default defineContentScript({
       selectionBox.style.top = `${startY}px`;
       overlay?.appendChild(selectionBox);
 
-      // Add listener to selectionBox for moving later
       selectionBox.addEventListener('mousedown', (e) => {
-        if (actions && !isResizing) {
+        if (actions && !isResizing && !isAnnotating) {
           e.stopPropagation();
           isMoving = true;
           offsetX = e.clientX - selectRect.x;
@@ -266,6 +402,11 @@ export default defineContentScript({
       sizeLabel.textContent = `${Math.round(selectRect.w)} × ${Math.round(selectRect.h)}`;
       sizeLabel.style.left = `${selectRect.x}px`;
       sizeLabel.style.top = `${selectRect.y + selectRect.h + 8}px`;
+
+      // Update annotation canvas position if resizing/moving during annotation
+      if (annotationEngine && (isResizing || isMoving)) {
+        annotationEngine.updateSelectionRect(selectRect);
+      }
     }
 
     function handleMouseUp() {
@@ -284,6 +425,15 @@ export default defineContentScript({
     }
 
     function handleKeyDown(e: KeyboardEvent) {
+      if (isAnnotating) {
+        // In annotation mode, Escape exits annotation (not the whole flow)
+        if (e.key === 'Escape') {
+          exitAnnotationMode();
+        }
+        // Don't handle other keys — annotation engine handles them
+        return;
+      }
+
       if (e.key === 'Escape') {
         cleanup();
         browser.runtime.sendMessage({ type: 'selection-complete', canceled: true });
@@ -296,6 +446,21 @@ export default defineContentScript({
 
     function cleanup() {
       console.log('Running robust cleanup...');
+
+      // Destroy annotation engine if active
+      if (annotationEngine) {
+        annotationEngine.destroy();
+        annotationEngine = null;
+      }
+      isAnnotating = false;
+
+      // Remove annotation elements by ID
+      document.getElementById('screenshot-annotation-canvas')?.remove();
+      document.getElementById('screenshot-annotation-host')?.remove();
+
+      // Remove text input if open
+      const textInputs = document.querySelectorAll('textarea[style*="2147483650"]');
+      textInputs.forEach(el => el.remove());
 
       // Remove via ID-based root first
       const root = document.getElementById('screenshot-selection-root');
@@ -327,6 +492,7 @@ export default defineContentScript({
       hint = null;
       styleElement = null;
       actions = null;
+      preAnnotationScreenshot = null;
 
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
