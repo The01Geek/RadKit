@@ -6,7 +6,7 @@
   var elapsed = 0;
   var finished = false;
   var paused = false;
-  var webcamWindowId = null;
+  var webcamActive = false;
 
   var splash = document.getElementById('splash');
   var bar = document.getElementById('bar');
@@ -34,9 +34,9 @@
   }
 
   function closeWebcam() {
-    if (webcamWindowId) {
-      chrome.windows.remove(webcamWindowId, function () {});
-      webcamWindowId = null;
+    if (webcamActive) {
+      chrome.runtime.sendMessage({ type: 'stop-webcam-overlay' }, function () {});
+      webcamActive = false;
     }
   }
 
@@ -263,22 +263,10 @@
 
     recorder.start(1000);
 
-    // Open webcam overlay if enabled
+    // Open webcam overlay if enabled — inject into the recorded tab via content script
     if (settings.webcam) {
-      var camSize = 200;
-      var camLeft = Math.round(screen.width - camSize - 30);
-      var camTop = Math.round(screen.height - camSize - 80);
-      chrome.windows.create({
-        url: chrome.runtime.getURL('/webcam.html'),
-        type: 'popup',
-        width: camSize,
-        height: camSize,
-        left: camLeft,
-        top: camTop,
-        focused: false,
-      }, function (win) {
-        if (win && win.id) webcamWindowId = win.id;
-      });
+      chrome.runtime.sendMessage({ type: 'start-webcam-overlay' }, function () {});
+      webcamActive = true;
     }
 
     // Switch to compact control bar

@@ -20,6 +20,47 @@ export default defineBackground(() => {
     }
   }
 
+  // Relay webcam overlay messages to the recorded tab's content script
+  async function relayWebcamMessage(type: string) {
+    const data = await browser.storage.local.get('recordingTabId');
+    const tabId = data.recordingTabId;
+    if (!tabId) throw new Error('No recording tab ID found');
+
+    // Ensure the content script is injected before sending
+    if (type === 'start-webcam-overlay') {
+      const possiblePaths = ['content-scripts/content.js', 'content.js'];
+      let injected = false;
+      for (const path of possiblePaths) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId },
+            files: [path],
+          });
+          injected = true;
+          break;
+        } catch (e) { /* path may not exist or script already loaded — try next */ }
+      }
+      if (!injected) {
+        console.warn('Content script injection failed — assuming already loaded via manifest');
+      }
+    }
+
+    // Retry message delivery with backoff in case content script is still initializing
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await browser.tabs.sendMessage(tabId, { type });
+        return;
+      } catch (e) {
+        lastError = e;
+        if (attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+        }
+      }
+    }
+    throw new Error(`Failed to send ${type} to tab ${tabId}: ${lastError}`);
+  }
+
   // Listen for messages from popup
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'capture') {
@@ -38,6 +79,13 @@ export default defineBackground(() => {
 
     if (message.type === 'selection-complete') {
       return false; // Handled by waitForSelection
+    }
+
+    if (message.type === 'start-webcam-overlay' || message.type === 'stop-webcam-overlay') {
+      relayWebcamMessage(message.type)
+        .then(() => sendResponse({ success: true }))
+        .catch((error: any) => sendResponse({ success: false, error: error.message }));
+      return true;
     }
 
     return false;
@@ -158,6 +206,12 @@ export default defineBackground(() => {
   }
 
   async function captureRecording(): Promise<{ success: boolean; error?: string }> {
+    // Save the active tab ID so the background relay can target it for the webcam overlay
+    const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+    if (activeTab?.id) {
+      await browser.storage.local.set({ recordingTabId: activeTab.id });
+    }
+
     return new Promise((resolve, reject) => {
       chrome.windows.create(
         {

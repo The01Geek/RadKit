@@ -13,11 +13,13 @@ RadKit is a browser extension built with the [WXT](https://wxt.dev/) framework, 
 │  Background Script (Service Worker)                  │
 │  entrypoints/background.ts                           │
 │  Handles capture orchestration, keyboard shortcuts,  │
-│  and cross-component messaging                       │
+│  webcam overlay message relay, and cross-component   │
+│  messaging                                           │
 ├──────────────────────────────────────────────────────┤
 │  Content Script                                      │
 │  entrypoints/content.ts + selection.css               │
 │  Injected into web pages for area-selection overlay   │
+│  and webcam overlay (Shadow DOM isolated)             │
 ├──────────────────────────────────────────────────────┤
 │  Editor Page                                         │
 │  entrypoints/editor/                                 │
@@ -40,7 +42,7 @@ RadKit is a browser extension built with the [WXT](https://wxt.dev/) framework, 
 
 1. **User initiates recording** — via the popup, which saves recording settings (`recordingSettings`) to storage.
 2. **Background opens record bar** — a small popup window is created at `record.html`, which serves as the recording control bar.
-3. **Recording auto-starts** — `record.js` begins capturing via `getDisplayMedia`, with optional webcam overlay via `webcam.html`.
+3. **Recording auto-starts** — `record.js` begins capturing via `getDisplayMedia`, with optional webcam overlay injected as a Shadow DOM element into the recorded tab via the content script (`content.ts`).
 4. **User stops recording** — the recorded video is finalized and a preview page (`preview.html`) opens in a new tab.
 5. **Preview and save** — `preview.js` plays back the recording; the user can save (which stores the video in a `recordings` array in storage and triggers `chrome.downloads.download()`) or discard it.
 
@@ -75,7 +77,7 @@ RadKit makes **zero external network requests**. All fonts are bundled locally (
 ```
 entrypoints/
 ├── background.ts        # Service worker — capture orchestration
-├── content.ts           # Content script — area selection overlay
+├── content.ts           # Content script — area selection overlay + webcam overlay
 ├── selection.css         # Styles for the selection UI
 ├── popup/               # Extension popup
 │   ├── index.html
@@ -103,7 +105,7 @@ public/
 ├── recordings.js        # List/download/delete recordings
 ├── screenshots.html     # Screenshots management page
 ├── screenshots.js       # List/download/delete screenshots
-├── webcam.html          # Circular webcam overlay window
-├── webcam.js            # Webcam stream initialization and error handling
+├── webcam.html          # Legacy webcam popup (no longer used for overlay)
+├── webcam.js            # Legacy webcam stream initialization (no longer used for overlay)
 └── icon/                # Extension icons (16–128px)
 ```

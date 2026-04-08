@@ -15,14 +15,15 @@ The recording mode captures screen activity as a WebM video file (VP9/VP8 codec,
 | `entrypoints/popup/App.tsx` | Record tab with inline settings (framerate, audio, resolution, webcam) and `handleRecord()` function |
 | `entrypoints/popup/App.css` | Tab bar, settings grid, toggle switch, record button styles |
 | `public/record.html` | Compact recording control bar UI (timer + pause/stop/discard buttons) |
-| `public/record.js` | Auto-start recording, control bar logic, pause/resume, webcam window management, preview preparation |
+| `public/record.js` | Auto-start recording, control bar logic, pause/resume, webcam overlay messaging, preview preparation |
 | `public/preview.html` | Recording preview page (opens in a browser tab after recording finishes) |
 | `public/preview.js` | Preview video playback, save-as-download and discard logic |
 | `public/recordings.html` | Recordings management page listing all stored recordings |
 | `public/recordings.js` | List, download, and delete stored recordings |
-| `public/webcam.html` | Circular webcam overlay popup window |
-| `public/webcam.js` | Webcam stream initialization, camera error handling |
-| `entrypoints/background.ts` | `captureRecording()` function, window lifecycle, preview tab opening |
+| `public/webcam.html` | Legacy webcam popup (no longer used for overlay) |
+| `public/webcam.js` | Legacy webcam stream initialization (no longer used for overlay) |
+| `entrypoints/content.ts` | Webcam overlay injection via Shadow DOM, drag/resize, camera error handling |
+| `entrypoints/background.ts` | `captureRecording()` function, window lifecycle, webcam message relay, preview tab opening |
 | `entrypoints/editor/Icons.tsx` | `IconRecord` component |
 
 ### Flow
@@ -34,7 +35,7 @@ The recording mode captures screen activity as a WebM video file (VP9/VP8 codec,
 5. Background opens `record.html` in a popup window (1024x768) via `chrome.windows.create()`
 6. `record.js` auto-starts recording on load: reads `recordingSettings` from storage, calls `getDisplayMedia` with the configured video/audio constraints
 7. The screen-picker dialog appears; the user selects a screen/window/tab
-8. If webcam overlay is enabled, a 200x200 `webcam.html` popup opens at the bottom-right of the screen
+8. If webcam overlay is enabled, `record.js` sends `start-webcam-overlay` to the background, which relays it to the content script in the recorded tab; the content script injects a 200x200 circular webcam overlay (Shadow DOM isolated, draggable, resizable) at the bottom-right of the page
 9. After the screen-picker closes, `showBar()` resizes the record window from 1024x768 down to 340x90, becoming a compact floating control bar with:
    - Pulsing red recording dot (turns orange when paused)
    - Running timer (`m:ss` format)
@@ -60,7 +61,7 @@ The recording mode captures screen activity as a WebM video file (VP9/VP8 codec,
 - **Window-close detection** — `chrome.windows.onRemoved` listener detects if the user closes the recording window manually, preventing the Promise from hanging
 - **Finish guard** — `finish()` uses a boolean `finished` flag to prevent duplicate invocations from race conditions (e.g., `onerror` + `onstop`, track `ended` + stop button)
 - **Codec fallback** — when audio tracks are present, tries `vp9,opus` first, then `vp8,opus`, then plain WebM; when no audio, tries `vp9`, then `vp8`, then plain WebM
-- **Webcam overlay** — a separate 200x200 popup window (`webcam.html`) shows a circular, mirrored webcam feed; it auto-closes when recording stops via `closeWebcam()` in `finish()` and `discardRecording()`
+- **Webcam overlay** — a content script injects a circular, mirrored webcam feed as a Shadow DOM overlay directly into the recorded page; it is removed when recording stops via `closeWebcam()` in `finish()` and `discardRecording()`, which sends `stop-webcam-overlay` through the background relay to the content script. The overlay is draggable and resizable, with a default 200x200px size at bottom-right
 
 ### Permissions
 
@@ -120,4 +121,4 @@ The `previewRecordingId` key is temporarily set to the ID of the just-completed 
 - `chrome.windows.create` failure — checks `chrome.runtime.lastError`, rejects immediately
 - Stream track ended (browser "Stop sharing") — triggers `stopRecording()` via the video track's `ended` event listener
 - Pause edge case — if recorder is paused when stop is clicked, `stopRecording()` calls `recorder.resume()` first so `onstop` fires correctly
-- Webcam unavailable — `webcam.html` catches the error and shows "Camera unavailable" text instead of crashing
+- Webcam unavailable — the content script's `getUserMedia` catch handler shows a specific error message (permission denied, no camera found, camera in use, or generic fallback) and logs the error to the console

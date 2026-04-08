@@ -129,7 +129,16 @@ export default defineContentScript({
         createSelectionOverlay();
       } else if (message.type === 'cleanup-selection') {
         cleanup();
+      } else if (message.type === 'start-webcam-overlay') {
+        startWebcamOverlay();
+      } else if (message.type === 'stop-webcam-overlay') {
+        stopWebcamOverlay();
       }
+    });
+
+    // Clean up webcam stream if the page navigates away
+    window.addEventListener('beforeunload', () => {
+      stopWebcamOverlay();
     });
 
     function createSelectionOverlay() {
@@ -294,6 +303,227 @@ export default defineContentScript({
       }
     }
 
+    // ── Webcam overlay ──────────────────────────────────────────────
+    let webcamHost: HTMLDivElement | null = null;
+    let webcamStream: MediaStream | null = null;
+
+    function startWebcamOverlay() {
+      // Prevent duplicates
+      if (webcamHost) return;
+
+      const CAM_SIZE = 200;
+      const Z_INDEX = 2147483641;
+
+      // Create Shadow DOM host
+      webcamHost = document.createElement('div');
+      webcamHost.id = 'radkit-webcam-host';
+      webcamHost.style.cssText = `
+        position: fixed !important;
+        bottom: 20px !important;
+        right: 20px !important;
+        width: ${CAM_SIZE}px !important;
+        height: ${CAM_SIZE}px !important;
+        z-index: ${Z_INDEX} !important;
+        border: none !important;
+        background: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        pointer-events: auto !important;
+      `;
+      document.body.appendChild(webcamHost);
+
+      const shadow = webcamHost.attachShadow({ mode: 'closed' });
+
+      const style = document.createElement('style');
+      style.textContent = `
+        :host {
+          all: initial !important;
+        }
+        .radkit-webcam-container {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          overflow: hidden;
+          border: 3px solid rgba(255,255,255,0.3);
+          background: #111;
+          cursor: grab;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+          user-select: none;
+        }
+        .radkit-webcam-container:active {
+          cursor: grabbing;
+        }
+        video {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transform: scaleX(-1);
+          display: block;
+          border-radius: 50%;
+        }
+        .radkit-webcam-resize-handle {
+          position: absolute;
+          bottom: 0;
+          right: 0;
+          width: 20px;
+          height: 20px;
+          cursor: nwse-resize;
+          background: transparent;
+          z-index: 1;
+        }
+        .radkit-webcam-resize-handle::after {
+          content: '';
+          position: absolute;
+          bottom: 4px;
+          right: 4px;
+          width: 8px;
+          height: 8px;
+          border-right: 2px solid rgba(255,255,255,0.5);
+          border-bottom: 2px solid rgba(255,255,255,0.5);
+          border-radius: 0 0 3px 0;
+        }
+        .radkit-webcam-error {
+          color: #888;
+          font-size: 12px;
+          text-align: center;
+          padding: 20px;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+      `;
+      shadow.appendChild(style);
+
+      const container = document.createElement('div');
+      container.className = 'radkit-webcam-container';
+      shadow.appendChild(container);
+
+      const video = document.createElement('video');
+      video.autoplay = true;
+      video.muted = true;
+      video.playsInline = true;
+      container.appendChild(video);
+
+      // Resize handle
+      const resizeHandle = document.createElement('div');
+      resizeHandle.className = 'radkit-webcam-resize-handle';
+      container.appendChild(resizeHandle);
+
+      // Start camera
+      navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 320 }, height: { ideal: 320 }, facingMode: 'user' },
+        audio: false
+      }).then((stream) => {
+        webcamStream = stream;
+        video.srcObject = stream;
+      }).catch((err: DOMException) => {
+        console.warn('Webcam access failed:', err.name, err.message);
+        container.innerHTML = '';
+        const errorEl = document.createElement('div');
+        errorEl.className = 'radkit-webcam-error';
+        if (err.name === 'NotAllowedError') {
+          errorEl.textContent = 'Camera permission denied';
+        } else if (err.name === 'NotFoundError') {
+          errorEl.textContent = 'No camera found';
+        } else if (err.name === 'NotReadableError') {
+          errorEl.textContent = 'Camera in use by another app';
+        } else {
+          errorEl.textContent = 'Camera unavailable';
+        }
+        container.appendChild(errorEl);
+      });
+
+      // ── Dragging ──
+      let isDragging = false;
+      let dragOffsetX = 0;
+      let dragOffsetY = 0;
+
+      container.addEventListener('mousedown', (e: MouseEvent) => {
+        // Ignore if clicking the resize handle
+        if (e.target === resizeHandle) return;
+        isDragging = true;
+        const rect = webcamHost!.getBoundingClientRect();
+        dragOffsetX = e.clientX - rect.left;
+        dragOffsetY = e.clientY - rect.top;
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', onDragMove);
+      document.addEventListener('mouseup', onDragUp);
+
+      function onDragMove(e: MouseEvent) {
+        if (!isDragging || !webcamHost) return;
+        const x = e.clientX - dragOffsetX;
+        const y = e.clientY - dragOffsetY;
+        // Switch from bottom/right to top/left positioning for drag
+        webcamHost.style.bottom = 'auto';
+        webcamHost.style.right = 'auto';
+        webcamHost.style.left = `${Math.max(0, Math.min(x, window.innerWidth - webcamHost.offsetWidth))}px`;
+        webcamHost.style.top = `${Math.max(0, Math.min(y, window.innerHeight - webcamHost.offsetHeight))}px`;
+      }
+
+      function onDragUp() {
+        isDragging = false;
+      }
+
+      // ── Resizing ──
+      let isResizingWebcam = false;
+      let resizeStartX = 0;
+      let resizeStartY = 0;
+      let resizeStartW = 0;
+      let resizeStartH = 0;
+
+      resizeHandle.addEventListener('mousedown', (e: MouseEvent) => {
+        isResizingWebcam = true;
+        resizeStartX = e.clientX;
+        resizeStartY = e.clientY;
+        resizeStartW = webcamHost!.offsetWidth;
+        resizeStartH = webcamHost!.offsetHeight;
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      document.addEventListener('mousemove', onResizeMove);
+      document.addEventListener('mouseup', onResizeUp);
+
+      function onResizeMove(e: MouseEvent) {
+        if (!isResizingWebcam || !webcamHost) return;
+        const dx = e.clientX - resizeStartX;
+        const dy = e.clientY - resizeStartY;
+        // Keep it square — use the larger delta
+        const delta = Math.max(dx, dy);
+        const newSize = Math.max(80, Math.min(resizeStartW + delta, 500));
+        webcamHost.style.width = `${newSize}px`;
+        webcamHost.style.height = `${newSize}px`;
+      }
+
+      function onResizeUp() {
+        isResizingWebcam = false;
+      }
+
+      // Store cleanup handlers for removal
+      (webcamHost as any)._cleanupHandlers = { onDragMove, onDragUp, onResizeMove, onResizeUp };
+    }
+
+    function stopWebcamOverlay() {
+      if (webcamStream) {
+        webcamStream.getTracks().forEach(t => t.stop());
+        webcamStream = null;
+      }
+      if (webcamHost) {
+        // Remove document-level event listeners
+        const handlers = (webcamHost as any)._cleanupHandlers;
+        if (handlers) {
+          document.removeEventListener('mousemove', handlers.onDragMove);
+          document.removeEventListener('mouseup', handlers.onDragUp);
+          document.removeEventListener('mousemove', handlers.onResizeMove);
+          document.removeEventListener('mouseup', handlers.onResizeUp);
+        }
+        webcamHost.remove();
+        webcamHost = null;
+      }
+    }
+
+    // ── Selection overlay cleanup ────────────────────────────────────
     function cleanup() {
       console.log('Running robust cleanup...');
 
