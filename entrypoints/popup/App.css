@@ -5,9 +5,9 @@
     --card-bg: rgba(255, 255, 255, 0.06);
     --card-border: rgba(255, 255, 255, 0.08);
     --card-hover-bg: rgba(255, 255, 255, 0.10);
-    --card-hover-border: rgba(161, 115, 254, 0.4);
-    --accent: #a173fe;
-    --accent-glow: rgba(161, 115, 254, 0.15);
+    --card-hover-border: rgba(6, 182, 212, 0.4);
+    --accent: #06b6d4;
+    --accent-glow: rgba(6, 182, 212, 0.15);
     --text-primary: #f0f0f5;
     --text-secondary: #8a8a9a;
     --radius: 14px;
@@ -94,7 +94,7 @@ body {
     border: none;
     border-radius: 8px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .tab-btn:hover {
@@ -102,7 +102,7 @@ body {
 }
 
 .tab-btn.active {
-    background: rgba(161, 115, 254, 0.15);
+    background: rgba(6, 182, 212, 0.15);
     color: var(--accent);
 }
 
@@ -147,7 +147,7 @@ body {
     border-radius: 6px;
     cursor: pointer;
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .setting-select option {
@@ -156,11 +156,12 @@ body {
 }
 
 .setting-select:hover {
-    border-color: rgba(161, 115, 254, 0.4);
+    border-color: rgba(6, 182, 212, 0.4);
 }
 
 .setting-select:focus {
     border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
 .setting-select:disabled {
@@ -187,7 +188,8 @@ body {
 
 .record-btn:hover:not(:disabled) {
     background: #c62828;
-    box-shadow: 0 0 20px rgba(229, 57, 53, 0.3);
+    box-shadow: 0 0 24px rgba(229, 57, 53, 0.35);
+    transform: translateY(-1px);
 }
 
 .record-btn:active:not(:disabled) {
@@ -239,11 +241,11 @@ body {
     height: 16px;
     background: #888;
     border-radius: 50%;
-    transition: transform 0.2s, background 0.2s;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s ease;
 }
 
 .toggle input:checked + .toggle-slider {
-    background: rgba(161, 115, 254, 0.3);
+    background: rgba(6, 182, 212, 0.3);
 }
 
 .toggle input:checked + .toggle-slider::after {
@@ -300,7 +302,7 @@ body {
     background: var(--card-hover-bg);
     border-color: var(--card-hover-border);
     box-shadow: 0 0 20px var(--accent-glow), 0 4px 16px rgba(0, 0, 0, 0.3);
-    transform: scale(1.02);
+    transform: translateY(-1px) scale(1.01);
 }
 
 .capture-card:active:not(:disabled) {
@@ -318,17 +320,17 @@ body {
     justify-content: center;
     width: 40px;
     height: 40px;
-    background: rgba(161, 115, 254, 0.1);
+    background: rgba(6, 182, 212, 0.1);
     border-radius: 10px;
     color: var(--accent);
     flex-shrink: 0;
-    transition: all 0.25s ease;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .capture-card:hover:not(:disabled) .icon-wrap {
     background: var(--accent);
     color: #ffffff;
-    box-shadow: 0 0 12px rgba(161, 115, 254, 0.4);
+    box-shadow: 0 0 14px rgba(6, 182, 212, 0.45);
 }
 
 .capture-card .card-content {
@@ -357,8 +359,8 @@ body {
     gap: 10px;
     margin-top: 12px;
     padding: 10px;
-    background: rgba(161, 115, 254, 0.08);
-    border: 1px solid rgba(161, 115, 254, 0.15);
+    background: rgba(6, 182, 212, 0.08);
+    border: 1px solid rgba(6, 182, 212, 0.15);
     border-radius: 10px;
     font-size: 13px;
     font-weight: 500;
