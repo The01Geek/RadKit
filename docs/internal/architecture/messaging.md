@@ -41,6 +41,27 @@ Sent via `browser.runtime.sendMessage`. The background script listens for this i
 
 Sent via `chrome.runtime.sendMessage`. The offscreen document (`public/offscreen.html`) listens for this message, calls `navigator.mediaDevices.getUserMedia` with the provided `streamId`, draws one frame to a canvas, and returns the PNG data URL. The offscreen document is created on demand and destroyed after each capture.
 
+### Popup → Background (Webcam)
+
+| Message | Purpose | Response |
+|---------|---------|----------|
+| `{ type: 'toggle-webcam', action: 'start' }` | Start the webcam overlay on the active tab | `{ success: true }` or `{ success: false, error: string }` |
+| `{ type: 'toggle-webcam', action: 'stop' }` | Stop and remove the webcam overlay | `{ success: true }` |
+
+### Background → Content Script (Webcam)
+
+| Message | Purpose |
+|---------|---------|
+| `{ type: 'start-webcam-overlay' }` | Tell the webcam content script to show the overlay and start the camera |
+| `{ type: 'stop-webcam-overlay' }` | Remove the webcam overlay and stop the camera |
+
+### Content Script → Background (Webcam)
+
+| Message | Purpose |
+|---------|---------|
+| `{ type: 'webcam-overlay-ready' }` | Camera initialized, overlay is visible |
+| `{ type: 'webcam-overlay-error', error: string }` | Camera access failed |
+
 ### Keyboard Shortcut → Background
 
 The `chrome.commands.onCommand` listener in `entrypoints/background.ts` handles:

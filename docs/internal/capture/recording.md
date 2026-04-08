@@ -1,10 +1,25 @@
 # Recording (GIF / Video Capture) — Design Reference
 
-> **Status**: Not yet implemented. This document captures the current state of related infrastructure and design considerations for the recording feature.
+> **Status**: Partially implemented. The webcam overlay content script is complete (issue #42). Screen/video recording is not yet implemented.
 
 ## Current State
 
 RadKit's capture system is entirely **static** — every mode produces a single PNG screenshot. There is no recording, animation, or video capture functionality today.
+
+### Webcam Overlay (Implemented)
+
+The webcam overlay is a content script (`entrypoints/webcam-overlay.ts`) that injects a circular webcam feed directly into the active tab's DOM using Shadow DOM for style isolation. Key characteristics:
+
+- **Shadow DOM**: Styles are encapsulated via `attachShadow({ mode: 'open' })`, preventing conflicts with host page CSS
+- **Circular bubble**: 200x200px default size, `border-radius: 50%`, mirrored via `scaleX(-1)`, thin white border
+- **Draggable**: Click-and-drag to reposition anywhere on the page
+- **Resizable**: Drag handle at bottom-right corner (80px min, 600px max)
+- **Camera access**: Uses `navigator.mediaDevices.getUserMedia({ video: true })` directly in the content script
+- **Error handling**: Shows a fallback message if camera access fails
+- **Cleanup**: Stops camera tracks, removes document event listeners, and removes the host element
+- **z-index**: `2147483647` (maximum) to appear above all page content
+
+The overlay is toggled from the popup UI via the background script. The content script is dynamically injected on first use and persists its message listener for subsequent toggles.
 
 ### Relevant Existing Infrastructure
 
