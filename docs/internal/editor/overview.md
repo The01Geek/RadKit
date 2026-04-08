@@ -17,6 +17,7 @@ The editor is a single React component (`Editor`) that manages all state with `u
 | `history`, `historyIndex` | Undo/redo stack (array of element snapshots) |
 | `zoom` | Current zoom level (starts at fit-to-viewport) |
 | `cropRect`, `isCropping` | Active crop region |
+| `exportFormat`, `exportQuality` | Default export settings loaded from `utils/settings.ts` on mount |
 | `presets` | Saved style presets (persisted to `chrome.storage.local`) |
 
 ## Drawing Elements
@@ -86,7 +87,7 @@ The canvas uses `react-konva`:
 
 The editor supports:
 - **Copy to clipboard** — renders the stage to a blob, writes to clipboard via `navigator.clipboard.write`
-- **Download** — renders to PNG and triggers a download link
+- **Download** — renders to the user's preferred format (PNG, JPEG, or WebP) at their configured quality level. The default format and quality are loaded from `utils/settings.ts` on mount and can be overridden per-download. The toolbar Download button uses the settings defaults.
 - **Save** — same as download with a custom filename
 
 All export functions use `stageRef.current.toBlob()` or `stageRef.current.toDataURL()`.

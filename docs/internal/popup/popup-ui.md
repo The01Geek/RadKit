@@ -4,7 +4,7 @@ The extension popup (`entrypoints/popup/`) is a React app shown when the user cl
 
 ## Layout
 
-- **Header**: "RadKit" brand name with purple accent on "Kit", plus an "Alt+S" shortcut hint badge
+- **Header**: "RadKit" brand name with purple accent on "Kit", an "Alt+S" shortcut hint badge, and a gear icon button that opens the options/settings page
 - **5 capture cards**: Stacked vertically, each with an icon and label/description
 - **Status bar**: Shown during capture with a pulsing dot animation
 

@@ -23,6 +23,11 @@ RadKit is a browser extension built with the [WXT](https://wxt.dev/) framework, 
 │  entrypoints/editor/                                 │
 │  Full-page React app (editor.html) with Konva canvas │
 │  for annotating captured screenshots                 │
+├──────────────────────────────────────────────────────┤
+│  Options Page                                        │
+│  entrypoints/options/                                │
+│  Settings UI for export format, quality, and         │
+│  optional S3 upload configuration                    │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -39,7 +44,7 @@ RadKit is a browser extension built with the [WXT](https://wxt.dev/) framework, 
 | Technology | Purpose | Entry point |
 |-----------|---------|-------------|
 | WXT | Extension framework, dev server, build tooling | `wxt.config.ts` |
-| React 19 | UI for popup and editor | `entrypoints/popup/`, `entrypoints/editor/` |
+| React 19 | UI for popup, editor, and options page | `entrypoints/popup/`, `entrypoints/editor/`, `entrypoints/options/` |
 | Konva / react-konva | 2D canvas for the annotation editor | `entrypoints/editor/Editor.tsx` |
 | TypeScript | Type safety across the codebase | `tsconfig.json` |
 
@@ -57,7 +62,7 @@ Note: Screen/window capture uses `getDisplayMedia` in a popup extension window (
 
 ## Privacy Model
 
-RadKit makes **zero external network requests**. All fonts are bundled locally (`assets/fonts/`), all processing happens in-browser, and no analytics or telemetry is included. This is a core design constraint, not a feature toggle.
+By default, RadKit makes **zero external network requests**. All fonts are bundled locally (`assets/fonts/`), all processing happens in-browser, and no analytics or telemetry is included. The only exception is the optional S3-compatible cloud upload feature, which is disabled by default and must be explicitly enabled by the user in the options page. When disabled, no network requests are made.
 
 ## File Structure
 
@@ -71,12 +76,19 @@ entrypoints/
 │   ├── main.tsx
 │   ├── App.tsx
 │   └── App.css
+├── options/             # Options / settings page
+│   ├── index.html
+│   ├── main.tsx
+│   ├── Options.tsx       # Settings UI component
+│   └── options.css
 └── editor/              # Annotation editor
     ├── index.html
     ├── main.tsx
     ├── Editor.tsx        # Main editor component (1600+ lines)
     ├── editor.css
     └── Icons.tsx         # SVG icon components
+utils/
+└── settings.ts          # Settings load/save with sync/local storage split
 assets/
 ├── fonts/               # Bundled Inter font files
 ├── icon.png
