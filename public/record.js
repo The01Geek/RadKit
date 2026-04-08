@@ -76,7 +76,13 @@ const PRE_RECORD_DELAY_MS = 500;
     };
 
     // Handle the stream ending externally (e.g. user clicks browser "Stop sharing")
-    stream.getVideoTracks()[0].addEventListener('ended', () => {
+    const videoTrack = stream.getVideoTracks()[0];
+    if (!videoTrack) {
+      stream.getTracks().forEach((t) => t.stop());
+      sendResult({ success: false, error: 'No video track available' });
+      return;
+    }
+    videoTrack.addEventListener('ended', () => {
       if (recorder.state !== 'inactive') {
         recorder.stop();
       }

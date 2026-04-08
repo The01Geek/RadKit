@@ -522,7 +522,7 @@ export default defineBackground(() => {
   }
 
   async function startRecordingWindow(): Promise<void> {
-    return new Promise<void>((resolve) => {
+    return new Promise<void>((resolve, reject) => {
       chrome.windows.create(
         {
           url: chrome.runtime.getURL('/record.html'),
@@ -532,6 +532,11 @@ export default defineBackground(() => {
           focused: true,
         },
         (win) => {
+          if (chrome.runtime.lastError || !win?.id) {
+            reject(new Error(chrome.runtime.lastError?.message || 'Failed to open recording window'));
+            return;
+          }
+
           function cleanup() {
             browser.runtime.onMessage.removeListener(messageListener);
             chrome.windows.onRemoved.removeListener(windowClosedListener);
@@ -540,12 +545,16 @@ export default defineBackground(() => {
           const messageListener = (message: any) => {
             if (message.type !== 'recording-result') return;
             cleanup();
-            if (win?.id) chrome.windows.remove(win.id).catch(() => {});
-            resolve();
+            chrome.windows.remove(win.id!).catch(() => {});
+            if (!message.success) {
+              reject(new Error(message.error || 'Recording failed'));
+            } else {
+              resolve();
+            }
           };
 
           const windowClosedListener = (windowId: number) => {
-            if (windowId === win?.id) {
+            if (windowId === win.id) {
               cleanup();
               resolve();
             }
