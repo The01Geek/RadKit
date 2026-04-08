@@ -11,21 +11,26 @@ function App() {
     const [webcamState, setWebcamState] = useState<WebcamState>('off');
 
     const handleWebcamToggle = async () => {
-        if (webcamState === 'on') {
-            await browser.runtime.sendMessage({ type: 'toggle-webcam', action: 'stop' });
-            setWebcamState('off');
-            setStatus('');
-        } else {
-            setWebcamState('starting');
-            setStatus('Starting webcam...');
-            const response = await browser.runtime.sendMessage({ type: 'toggle-webcam', action: 'start' });
-            if (response?.success) {
-                setWebcamState('on');
-                setStatus('Webcam overlay active');
-            } else {
+        try {
+            if (webcamState === 'on') {
+                await browser.runtime.sendMessage({ type: 'toggle-webcam', action: 'stop' });
                 setWebcamState('off');
-                setStatus(response?.error || 'Webcam failed');
+                setStatus('');
+            } else {
+                setWebcamState('starting');
+                setStatus('Starting webcam...');
+                const response = await browser.runtime.sendMessage({ type: 'toggle-webcam', action: 'start' });
+                if (response?.success) {
+                    setWebcamState('on');
+                    setStatus('Webcam overlay active');
+                } else {
+                    setWebcamState('off');
+                    setStatus(response?.error || 'Webcam failed');
+                }
             }
+        } catch (error) {
+            setWebcamState('off');
+            setStatus('Error: ' + (error as Error).message);
         }
     };
 

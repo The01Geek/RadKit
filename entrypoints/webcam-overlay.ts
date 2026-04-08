@@ -8,6 +8,7 @@ export default defineContentScript({
     let shadowRoot: ShadowRoot | null = null;
     let videoElement: HTMLVideoElement | null = null;
     let mediaStream: MediaStream | null = null;
+    const documentListeners: Array<{ event: string; handler: EventListener }> = [];
 
     const OVERLAY_CSS = `
       :host {
@@ -147,6 +148,11 @@ export default defineContentScript({
       setupResize(bubble, resizeHandle);
     }
 
+    function addDocumentListener(event: string, handler: EventListener) {
+      document.addEventListener(event, handler);
+      documentListeners.push({ event, handler });
+    }
+
     function setupDrag(bubble: HTMLDivElement) {
       let isDragging = false;
       let dragOffsetX = 0;
@@ -163,7 +169,7 @@ export default defineContentScript({
         dragOffsetY = e.clientY - rect.top;
       });
 
-      document.addEventListener('mousemove', (e: MouseEvent) => {
+      addDocumentListener('mousemove', ((e: MouseEvent) => {
         if (!isDragging) return;
 
         const x = e.clientX - dragOffsetX;
@@ -173,14 +179,14 @@ export default defineContentScript({
         bubble.style.top = `${y}px`;
         bubble.style.right = 'auto';
         bubble.style.bottom = 'auto';
-      });
+      }) as EventListener);
 
-      document.addEventListener('mouseup', () => {
+      addDocumentListener('mouseup', (() => {
         if (isDragging) {
           isDragging = false;
           bubble.classList.remove('dragging');
         }
-      });
+      }) as EventListener);
     }
 
     function setupResize(bubble: HTMLDivElement, handle: HTMLDivElement) {
@@ -199,7 +205,7 @@ export default defineContentScript({
         startSize = bubble.offsetWidth;
       });
 
-      document.addEventListener('mousemove', (e: MouseEvent) => {
+      addDocumentListener('mousemove', ((e: MouseEvent) => {
         if (!isResizing) return;
 
         const dx = e.clientX - startX;
@@ -209,11 +215,11 @@ export default defineContentScript({
 
         bubble.style.width = `${newSize}px`;
         bubble.style.height = `${newSize}px`;
-      });
+      }) as EventListener);
 
-      document.addEventListener('mouseup', () => {
+      addDocumentListener('mouseup', (() => {
         isResizing = false;
-      });
+      }) as EventListener);
     }
 
     function cleanup() {
@@ -231,6 +237,11 @@ export default defineContentScript({
         hostElement.remove();
         hostElement = null;
       }
+
+      for (const { event, handler } of documentListeners) {
+        document.removeEventListener(event, handler);
+      }
+      documentListeners.length = 0;
 
       shadowRoot = null;
     }
