@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RadKit Recording</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ---------- pre-recording splash ---------- */
+  .splash {
+    text-align: center;
+    font-size: 15px;
+    color: #aaa;
+  }
+
+  /* ---------- control bar ---------- */
+  .bar {
+    display: none;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 18px;
+    width: 100%;
+    justify-content: center;
+  }
+  .bar.visible { display: flex; }
+
+  /* recording dot */
+  .rec-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #e53935;
+    flex-shrink: 0;
+    animation: pulse 1s infinite;
+  }
+  .rec-dot.paused {
+    background: #ffa726;
+    animation: none;
+  }
+
+  .timer {
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+    min-width: 56px;
+    text-align: center;
+  }
+
+  .divider {
+    width: 1px;
+    height: 22px;
+    background: rgba(255,255,255,0.15);
+    flex-shrink: 0;
+  }
+
+  .bar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.08);
+    color: #e0e0e0;
+  }
+  .bar-btn:hover { background: rgba(255,255,255,0.15); }
+  .bar-btn:active { transform: scale(0.92); }
+  .bar-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .bar-btn.stop { background: rgba(229,57,53,0.2); color: #e53935; }
+  .bar-btn.stop:hover { background: rgba(229,57,53,0.35); }
+
+  .bar-btn.discard { background: rgba(255,255,255,0.05); color: #888; }
+  .bar-btn.discard:hover { background: rgba(255,80,80,0.15); color: #e53935; }
+
+  .bar-btn svg { width: 18px; height: 18px; }
+
+  /* status text (shown during save) */
+  .status {
+    display: none;
+    text-align: center;
+    font-size: 13px;
+    color: #aaa;
+    padding: 10px;
+  }
+  .status.visible { display: block; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+</style>
+</head>
+<body>
+
+<div class="splash" id="splash">Select a screen to record…</div>
+
+<div class="bar" id="bar">
+  <span class="rec-dot" id="recDot"></span>
+  <span class="timer" id="timer">0:00</span>
+  <span class="divider"></span>
+
+  <!-- Pause / Resume -->
+  <button class="bar-btn" id="pauseBtn" title="Pause">
+    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+  </button>
+
+  <!-- Stop (finish & save) -->
+  <button class="bar-btn stop" id="stopBtn" title="Stop & Save">
+    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+  </button>
+
+  <!-- Discard -->
+  <button class="bar-btn discard" id="discardBtn" title="Discard">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>
+</div>
+
+<div class="status" id="status"></div>
+
+<script src="record.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # Getting Started with RadKit
 
-RadKit is a privacy-first browser extension for capturing and editing screenshots. It works entirely offline with zero external network requests — your screenshots never leave your device.
+RadKit is a privacy-first browser extension for capturing screenshots and recording your screen. It works entirely offline with zero external network requests — your captures never leave your device.
 
 ## Supported Browsers
 
@@ -32,9 +32,11 @@ The RadKit icon appears in your browser toolbar once the extension is loaded.
 ## What You Can Do
 
 - **Five capture modes** — visible viewport, area selection, full page, timed capture and screen or window capture
+- **Screen recording** — record your screen as a WebM video with audio, pause and resume support and an optional webcam overlay
 - **Rich annotation editor** — pencil, lines, arrows, rectangles, circles, text, blur and image overlays
 - **Crop and resize** — trim your capture to exactly what you need
 - **Style presets** — save and reuse your favorite colors, stroke widths and fonts
+- **Capture history** — all screenshots and recordings are saved locally for easy access later
 - **Export options** — copy to clipboard, download as PNG or save with a custom file name
 
 ## See Also

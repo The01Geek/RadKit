@@ -13,16 +13,17 @@ RadKit currently has **no dedicated options/settings page**. All configuration i
 | Capture format | Hardcoded to `png` | `background.ts:104` (`captureVisibleTab({ format: 'png' })`) |
 | Export format | PNG or JPEG via button; quality hardcoded to `0.9` | `Editor.tsx:1037-1047` (`handleDownload`) |
 | Keyboard shortcuts | `Alt+S` (visible), `Alt+D` (desktop) — defined in manifest, no runtime override | `wxt.config.ts:19-31` |
-| Image storage | Single `capturedImage` key in `browser.storage.local`; overwritten each capture | `background.ts:84` |
+| Image storage | `capturedImage` key in `browser.storage.local` (for the editor, overwritten each capture) AND a `screenshots` array (append-only history) | `background.ts:84` |
 | Cloud/S3 upload | Not implemented — RadKit makes zero external network requests | `architecture/overview.md` (Privacy Model) |
-| History/retention | No capture history; only the latest capture is stored | — |
+| History/retention | Capture history exists for both screenshots (`screenshots` array) and recordings (`recordings` array) in `chrome.storage.local`; no retention limits yet | `background.ts`, `recordings.js`, `screenshots.js` |
+| Recording settings | Framerate, audio, resolution, and webcam preferences stored in `recordingSettings` in `chrome.storage.local` | `popup/`, `record.js` |
 | Per-tool editor settings | Stored in-memory via `toolSettingsRef`; lost on page close | `Editor.tsx` |
 
 ### Storage Usage
 
-- **`browser.storage.local`** — used only for `capturedImage` (transient, one-at-a-time)
+- **`browser.storage.local`** — stores `capturedImage` (transient, for the editor), `screenshots` array (screenshot history), `recordings` array (recording history), `recordingSettings` (user recording preferences), and `previewRecordingId` (transient, identifies the recording being previewed)
 - **`browser.storage.sync`** — not used anywhere
-- **Permissions** — `storage` and `unlimitedStorage` already declared in the manifest
+- **Permissions** — `storage`, `unlimitedStorage`, and `downloads` already declared in the manifest
 
 ## Gaps an Options Page Would Address
 
@@ -30,7 +31,7 @@ RadKit currently has **no dedicated options/settings page**. All configuration i
 2. **Default export format** — currently PNG-only for capture, PNG/JPEG for download. WebP not offered.
 3. **Default quality** — hardcoded at `0.9`; no user control.
 4. **Keyboard shortcut customization** — Chrome exposes `chrome://extensions/shortcuts` but RadKit has no in-extension UI for this.
-5. **History retention limits** — no history exists; implementing retention limits implies building a capture history system first.
+5. **History retention limits** — capture history now exists for both screenshots and recordings (stored as arrays in `chrome.storage.local`); configurable retention limits (e.g., max count, auto-delete after N days) could still be useful to manage storage usage.
 
 ## WXT Integration Notes
 

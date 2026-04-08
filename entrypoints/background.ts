@@ -77,11 +77,27 @@ export default defineBackground(() => {
         case 'desktop':
           imageDataUrl = await captureDesktopMedia();
           break;
+        case 'recording':
+          return await captureRecording();
         default:
           throw new Error('Unknown capture mode');
       }
 
       await browser.storage.local.set({ capturedImage: imageDataUrl });
+
+      // Persist to screenshots history
+      const entry = {
+        id: 'ss_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+        timestamp: new Date().toISOString(),
+        mode,
+        size: imageDataUrl.length,
+        dataUrl: imageDataUrl,
+      };
+      const stored = await browser.storage.local.get({ screenshots: [] });
+      const screenshots = stored.screenshots || [];
+      screenshots.unshift(entry);
+      await browser.storage.local.set({ screenshots });
+
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
       await browser.tabs.create({ url: browser.runtime.getURL('/editor.html') });
       await broadcastCleanup(tab?.id);
@@ -136,6 +152,69 @@ export default defineBackground(() => {
             }
           };
           browser.runtime.onMessage.addListener(listener);
+        }
+      );
+    });
+  }
+
+  async function captureRecording(): Promise<{ success: boolean; error?: string }> {
+    return new Promise((resolve, reject) => {
+      chrome.windows.create(
+        {
+          url: chrome.runtime.getURL('/record.html'),
+          type: 'popup',
+          width: 1024,
+          height: 768,
+          focused: true,
+        },
+        (win) => {
+          if (chrome.runtime.lastError || !win) {
+            reject(new Error(chrome.runtime.lastError?.message || 'Failed to open recording window'));
+            return;
+          }
+
+          let settled = false;
+
+          const cleanup = () => {
+            browser.runtime.onMessage.removeListener(messageListener);
+            chrome.windows.onRemoved.removeListener(windowListener);
+          };
+
+          const messageListener = (message: any) => {
+            if (message.type === 'recording-preview-ready') {
+              // Recording finished — close the small popup and open preview in a real tab
+              if (settled) return;
+              settled = true;
+              cleanup();
+              if (win?.id) chrome.windows.remove(win.id);
+              chrome.tabs.create({ url: chrome.runtime.getURL('/preview.html') });
+              resolve({ success: true });
+              return;
+            }
+
+            if (message.type === 'recording-result') {
+              if (settled) return;
+              settled = true;
+              cleanup();
+              if (win?.id) chrome.windows.remove(win.id);
+              if (message.success) {
+                resolve({ success: true });
+              } else {
+                reject(new Error(message.error || 'Recording failed'));
+              }
+              return;
+            }
+          };
+
+          const windowListener = (closedWindowId: number) => {
+            if (closedWindowId !== win?.id || settled) return;
+            settled = true;
+            cleanup();
+            reject(new Error('Recording window was closed'));
+          };
+
+          browser.runtime.onMessage.addListener(messageListener);
+          chrome.windows.onRemoved.addListener(windowListener);
         }
       );
     });

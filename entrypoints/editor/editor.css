@@ -2,8 +2,8 @@
 @import '../../assets/fonts/inter.css';
 
 :root {
-  --brand-primary: #a173fe;
-  --brand-primary-hover: #8e5ceb;
+  --brand-primary: #0891b2;
+  --brand-primary-hover: #0e7490;
   --bg-main: #f3f4f6;
   /* Soft gray for the foundation */
   --bg-surface: #ffffff;
@@ -16,7 +16,7 @@
   /* Medium gray for secondary info */
   --border-main: #e5e7eb;
   /* Light gray for subtle borders */
-  --border-active: #a173fe;
+  --border-active: #0891b2;
   --radius-sm: 4px;
   --radius-md: 6px;
   --header-height: 56px;
@@ -93,7 +93,7 @@ body {
   border-radius: var(--radius-md);
   color: var(--text-dim);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 }
 
@@ -105,6 +105,7 @@ body {
 .tool-btn.active {
   background: var(--brand-primary);
   color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(8, 145, 178, 0.3);
 }
 
 .tool-btn .btn-label {
@@ -218,10 +219,13 @@ body {
   padding: 6px 12px;
   font-weight: 600;
   font-size: 13px;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .header-actions button.btn-primary:hover {
   background: var(--brand-primary-hover);
+  box-shadow: 0 2px 10px rgba(8, 145, 178, 0.25);
+  transform: translateY(-1px);
 }
 
 .side-tool-btn {
@@ -247,6 +251,7 @@ body {
   background: var(--brand-primary);
   color: white;
   border-color: var(--brand-primary);
+  box-shadow: 0 2px 8px rgba(8, 145, 178, 0.3);
 }
 
 /* Header Presets Dropdown Unified */
@@ -356,7 +361,7 @@ body {
 .dropdown-item.active .apply-btn {
   color: var(--brand-primary);
   font-weight: 700;
-  background: rgba(99, 102, 241, 0.05);
+  background: rgba(8, 145, 178, 0.05);
 }
 
 .apply-label {
@@ -399,7 +404,7 @@ body {
 }
 
 .dropdown-item .update-btn:hover {
-  background: rgba(99, 102, 241, 0.08);
+  background: rgba(8, 145, 178, 0.08);
   color: var(--brand-primary);
 }
 
@@ -456,6 +461,7 @@ body {
 
 .inline-save-form input:focus {
   border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.12);
 }
 
 .form-actions {
@@ -571,7 +577,7 @@ body {
   font-family: 'Inter', sans-serif;
   font-weight: 700;
   letter-spacing: 0;
-  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 2px 4px rgba(8, 145, 178, 0.2);
 }
 
 .sidebar-section.layers {
@@ -621,6 +627,7 @@ body {
 
 .prop-row input[type="text"]:focus {
   border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.12);
 }
 
 .sidebar-select {
@@ -637,6 +644,7 @@ body {
 
 .sidebar-select:focus {
   border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.12);
 }
 
 .segmented-control {
@@ -724,7 +732,7 @@ body {
   padding: 10px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid transparent;
 }
 
@@ -733,8 +741,8 @@ body {
 }
 
 .layer-card.active {
-  background: rgba(99, 102, 241, 0.08);
-  border-color: rgba(99, 102, 241, 0.15);
+  background: rgba(8, 145, 178, 0.08);
+  border-color: rgba(8, 145, 178, 0.15);
 }
 
 .type-icon {
@@ -822,7 +830,7 @@ body {
 .inline-text-editor {
   position: absolute;
   background: transparent;
-  border: 1px solid rgba(99, 102, 241, 0.5);
+  border: 1px solid rgba(8, 145, 178, 0.5);
   border-radius: 1px;
   padding: 0;
   margin: 0;

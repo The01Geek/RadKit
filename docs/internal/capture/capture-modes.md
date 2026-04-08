@@ -1,6 +1,6 @@
 # Capture Modes
 
-RadKit supports four capture modes, all implemented in `entrypoints/background.ts`.
+RadKit supports five screenshot capture modes and one recording mode, all implemented in `entrypoints/background.ts`.
 
 ## Visible Viewport (`captureVisibleTab`)
 
@@ -116,3 +116,37 @@ The previous approach using `chrome.desktopCapture.chooseDesktopMedia` + `getUse
 ### Frame Capture Timing
 
 The capture uses `setTimeout(300ms)` instead of `requestVideoFrameCallback` to wait for a decoded frame. This is intentional: `requestVideoFrameCallback` only fires when the page is actively rendering, but when the user selects a different tab from the picker, the capture window goes to the background and the callback never fires. `setTimeout` works regardless of page visibility.
+
+## Screenshot History & Management
+
+All screenshot capture modes automatically persist captured images to a `screenshots` array in `chrome.storage.local` (in addition to the transient `capturedImage` key used by the editor). This happens in `entrypoints/background.ts` immediately after a successful capture.
+
+### Storage Schema
+
+Each screenshot entry in the `screenshots` array has the shape:
+
+```json
+{
+  "id": "ss_1712345678901_a1b2c3",
+  "timestamp": "2026-04-07T21:44:00.000Z",
+  "mode": "visible",
+  "size": 524288,
+  "dataUrl": "data:image/png;base64,..."
+}
+```
+
+- `id` — unique identifier (`ss_` prefix + timestamp + random suffix)
+- `mode` — the capture mode used (`visible`, `selection`, `fullpage`, `visible-delayed`, `desktop`)
+- New entries are prepended (newest first)
+
+### Screenshots Management Page
+
+`public/screenshots.html` and `public/screenshots.js` provide a browser-tab UI for viewing and managing stored screenshots:
+
+- **Summary bar** — shows total count and combined storage size
+- **Screenshot cards** — each card displays a thumbnail, capture date, capture mode label, and file size
+- **Actions per screenshot** — Download (via `chrome.downloads.download()` with fallback to `<a>` click) and Delete
+- **Bulk delete** — "Delete All Screenshots" button clears the entire array
+- **Access** — linked from the Capture tab in the popup via "View saved screenshots"
+
+The page follows the same dark UI theme as the recordings management page (`recordings.html`).

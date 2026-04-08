@@ -1,8 +1,8 @@
 /* Selection Styles - Modern Glassmorphic Redesign */
 :root {
-  --select-primary: hsl(210, 100%, 55%);
+  --select-primary: hsl(187, 92%, 43%);
   --select-bg-overlay: hsla(0, 0%, 0%, 0.4);
-  --select-border: hsla(210, 100%, 65%, 0.8);
+  --select-border: hsla(187, 92%, 53%, 0.8);
   --select-handle-bg: hsl(0, 0%, 100%);
   --select-handle-border: var(--select-primary);
   --glass-bg: hsla(0, 0%, 100%, 0.8);
@@ -27,7 +27,7 @@
   z-index: 2147483645;
   pointer-events: auto;
   cursor: move;
-  box-shadow: 0 0 0 9999px var(--select-bg-overlay), 0 0 20px hsla(210, 100%, 50%, 0.2);
+  box-shadow: 0 0 0 9999px var(--select-bg-overlay), 0 0 20px hsla(187, 92%, 43%, 0.2);
   border-radius: 4px;
 }
 
@@ -108,13 +108,13 @@
 .screenshot-selection-btn.confirm {
   background: var(--select-primary);
   color: white;
-  box-shadow: 0 4px 12px hsla(210, 100%, 55%, 0.3);
+  box-shadow: 0 4px 12px hsla(187, 92%, 43%, 0.3);
 }
 
 .screenshot-selection-btn.confirm:hover {
-  background: hsl(210, 100%, 45%);
+  background: hsl(187, 92%, 35%);
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px hsla(210, 100%, 55%, 0.4);
+  box-shadow: 0 6px 16px hsla(187, 92%, 43%, 0.4);
 }
 
 .screenshot-selection-btn.cancel {

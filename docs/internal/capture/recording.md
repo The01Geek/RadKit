@@ -1,44 +1,123 @@
-# Recording (GIF / Video Capture) — Design Reference
+# Recording (WebM Video Capture)
 
-> **Status**: Not yet implemented. This document captures the current state of related infrastructure and design considerations for the recording feature.
+> **Status**: Implemented. Records a browser tab or screen region as a WebM video clip using `getDisplayMedia` and `MediaRecorder`, with configurable settings, a floating control bar, optional webcam overlay, and in-browser preview/management.
 
-## Current State
+## Overview
 
-RadKit's capture system is entirely **static** — every mode produces a single PNG screenshot. There is no recording, animation, or video capture functionality today.
+The recording mode captures screen activity as a WebM video file (VP9/VP8 codec, optional Opus audio), with configurable frame rate, audio source, resolution, and webcam overlay. Completed recordings are stored in `chrome.storage.local` and previewed in a browser tab before the user decides to save or discard. All encoding and storage is client-side with zero network requests, consistent with RadKit's privacy model.
 
-### Relevant Existing Infrastructure
+## Architecture
 
-| Component | File | Relevance |
-|-----------|------|-----------|
-| `getDisplayMedia` popup window | `public/capture.html` + `public/capture.js` | Already opens a popup window with user activation to call `getDisplayMedia`. Recording will extend this pattern to keep the stream open instead of grabbing a single frame. |
-| Background orchestration | `entrypoints/background.ts` | `handleCapture()` switch dispatches by mode string. A new `'recording'` mode would be added here. |
-| Popup UI | `entrypoints/popup/App.tsx` | `CaptureMode` type union and capture card buttons. A new card for recording would be added. |
-| Editor | `entrypoints/editor/Editor.tsx` | Currently expects a static PNG data URL from `browser.storage.local`. Would need to either accept video/GIF blobs or the recording feature would bypass the editor entirely and offer direct download. |
-| Storage | `browser.storage.local` (`capturedImage` key) | Data URLs for large recordings may exceed storage limits. Video/GIF output may need `IndexedDB` or direct blob download instead. |
+### Files
 
-### APIs Available in Extension Context
+| File | Purpose |
+|------|---------|
+| `entrypoints/popup/App.tsx` | Record tab with inline settings (framerate, audio, resolution, webcam) and `handleRecord()` function |
+| `entrypoints/popup/App.css` | Tab bar, settings grid, toggle switch, record button styles |
+| `public/record.html` | Compact recording control bar UI (timer + pause/stop/discard buttons) |
+| `public/record.js` | Auto-start recording, control bar logic, pause/resume, webcam window management, preview preparation |
+| `public/preview.html` | Recording preview page (opens in a browser tab after recording finishes) |
+| `public/preview.js` | Preview video playback, save-as-download and discard logic |
+| `public/recordings.html` | Recordings management page listing all stored recordings |
+| `public/recordings.js` | List, download, and delete stored recordings |
+| `public/webcam.html` | Circular webcam overlay popup window |
+| `public/webcam.js` | Webcam stream initialization, camera error handling |
+| `entrypoints/background.ts` | `captureRecording()` function, window lifecycle, preview tab opening |
+| `entrypoints/editor/Icons.tsx` | `IconRecord` component |
 
-- **`navigator.mediaDevices.getDisplayMedia()`** — already used in `capture.js` for screen/window/tab selection. Returns a `MediaStream` that can be piped to `MediaRecorder`.
-- **`MediaRecorder` API** — records a `MediaStream` into `webm` (VP8/VP9) or potentially other formats. Available in both Chrome and Edge.
-- **`OffscreenCanvas` / `ImageBitmap`** — already used in `stitchImages()` for full-page capture. Could be used for GIF frame extraction.
+### Flow
 
-### Key Constraints
+1. User opens the popup and switches to the **Record** tab
+2. User configures settings (frame rate, audio, resolution, webcam overlay) inline within the tab
+3. User clicks **Start Recording**
+4. `handleRecord()` writes the settings to `chrome.storage.local` as `recordingSettings`, then sends `{ type: 'capture', mode: 'recording' }` to the background
+5. Background opens `record.html` in a popup window (1024x768) via `chrome.windows.create()`
+6. `record.js` auto-starts recording on load: reads `recordingSettings` from storage, calls `getDisplayMedia` with the configured video/audio constraints
+7. The screen-picker dialog appears; the user selects a screen/window/tab
+8. If webcam overlay is enabled, a 200x200 `webcam.html` popup opens at the bottom-right of the screen
+9. After the screen-picker closes, `showBar()` resizes the record window from 1024x768 down to 340x90, becoming a compact floating control bar with:
+   - Pulsing red recording dot (turns orange when paused)
+   - Running timer (`m:ss` format)
+   - Pause/Resume button
+   - Stop button (finish and save)
+   - Discard button (X)
+10. `MediaRecorder` records the stream, collecting data chunks every 1000ms
+11. Recording stops when: user clicks Stop, user clicks the browser's "Stop sharing" button, or the video track ends
+12. On stop, video blob is assembled from chunks, converted to a data URL via `FileReader`, and stored in a `recordings` array in `chrome.storage.local` (with id, timestamp, duration, size, dataUrl)
+13. `record.js` sends `{ type: 'recording-preview-ready' }` to the background
+14. Background closes the record popup window, opens `preview.html` in a new browser tab, and resolves the Promise
+15. Preview page loads the recording from storage, displays it with playback controls, and offers **Save Recording** (triggers save-as download via `chrome.downloads`) or **Discard** (removes from storage)
 
-1. **Privacy model** — RadKit makes zero network requests. All recording/encoding must happen client-side.
-2. **MV3 service worker** — the background script cannot access DOM APIs. Any canvas/video processing must happen in a popup window, offscreen document, or content script.
-3. **User activation** — `getDisplayMedia` requires a transient user gesture. The existing popup window pattern (`chrome.windows.create`) solves this.
-4. **Storage limits** — `browser.storage.local` has a 10 MB default limit (even with `unlimitedStorage`). Video data should use blob URLs or IndexedDB rather than data URLs in storage.
+### Key Design Decisions
 
-### File Locations for Implementation
+- **Tabbed popup UI** — the popup has two tabs ("Capture" and "Record") so screenshot and recording features share one entry point without clutter; settings live inline in the Record tab instead of in a separate window
+- **Settings in popup, not in record window** — `record.html` has no settings UI; it reads `recordingSettings` from `chrome.storage.local` and auto-starts immediately, keeping the record window minimal
+- **Auto-start pattern** — `startRecording()` is called at the bottom of the IIFE in `record.js`, so the screen-picker dialog appears as soon as the window opens with zero additional user interaction
+- **Floating control bar** — after the screen-picker closes, the 1024x768 popup shrinks to 340x90 so it sits unobtrusively on-screen while the user records; this avoids a full-size window blocking the content being captured
+- **Persistent storage** — recordings are stored as data URLs in `chrome.storage.local` and persist across sessions until the user manually deletes them, unlike the old approach which went directly to a download
+- **Preview before save** — the preview page lets the user watch back the recording and choose to save or discard, rather than immediately triggering a download
+- **Popup window pattern** — same pattern as `captureDesktopMedia()`, required for `getDisplayMedia` user activation in MV3
+- **Window-close detection** — `chrome.windows.onRemoved` listener detects if the user closes the recording window manually, preventing the Promise from hanging
+- **Finish guard** — `finish()` uses a boolean `finished` flag to prevent duplicate invocations from race conditions (e.g., `onerror` + `onstop`, track `ended` + stop button)
+- **Codec fallback** — when audio tracks are present, tries `vp9,opus` first, then `vp8,opus`, then plain WebM; when no audio, tries `vp9`, then `vp8`, then plain WebM
+- **Webcam overlay** — a separate 200x200 popup window (`webcam.html`) shows a circular, mirrored webcam feed; it auto-closes when recording stops via `closeWebcam()` in `finish()` and `discardRecording()`
 
-New files that would likely be created:
+### Permissions
 
-- `public/record.html` + `public/record.js` — popup window for recording (similar to `capture.html`/`capture.js`)
-- Or extend `public/capture.html`/`capture.js` to support both single-frame and recording modes
+- `downloads` — required for `chrome.downloads.download()` in preview.js and recordings.js (added to `wxt.config.ts`)
+- `getDisplayMedia`, `getUserMedia`, and `MediaRecorder` are standard web APIs requiring no special extension permissions
 
-Files that would be modified:
+### Configuration Defaults
 
-- `entrypoints/background.ts` — add `'recording'` case to `handleCapture()`, manage recording window lifecycle
-- `entrypoints/popup/App.tsx` — add recording card to the popup, extend `CaptureMode` type
-- `entrypoints/editor/Icons.tsx` — add a recording icon (e.g., `IconRecord`)
-- `wxt.config.ts` — no new permissions needed (`getDisplayMedia` and `MediaRecorder` are standard web APIs)
+| Setting | Default | Options |
+|---------|---------|---------|
+| Frame rate | 30 fps | 15, 24, 30, 60 fps |
+| Audio | Microphone | Microphone, System audio, Both, None |
+| Resolution | Source (native) | Source (native), 720p, 1080p, 4K |
+| Webcam Overlay | Off | On, Off |
+
+Settings are stored in `chrome.storage.local` under the key `recordingSettings` with the shape:
+
+```json
+{
+  "framerate": 30,
+  "audioMode": "mic",
+  "resolution": "source",
+  "webcam": false
+}
+```
+
+Audio mode values: `"mic"` (microphone via `getUserMedia`), `"system"` (system audio via `getDisplayMedia({ audio: true })`), `"both"` (both sources), `"none"` (no audio).
+
+Resolution values: `"source"` (no constraints, native resolution), `"720"` (1280x720 ideal), `"1080"` (1920x1080 ideal), `"4k"` (3840x2160 ideal).
+
+### Storage Schema
+
+Recordings are persisted in `chrome.storage.local` under the key `recordings` as an array of entries, newest first:
+
+```json
+{
+  "id": "rec_1712345678901_a1b2c3",
+  "timestamp": "2026-04-07T21:44:00.000Z",
+  "duration": 42,
+  "size": 5242880,
+  "dataUrl": "data:video/webm;base64,..."
+}
+```
+
+The `previewRecordingId` key is temporarily set to the ID of the just-completed recording so `preview.html` knows which entry to load; it is removed after the preview page reads it.
+
+### Error Handling
+
+- `getDisplayMedia` rejection (user cancels) — shows error status text, sends `{ type: 'recording-result', success: false }` to background
+- `getUserMedia` rejection (microphone access denied) — silently continues recording without microphone audio
+- `MediaRecorder` constructor failure — caught and reported via `finish()` with error message
+- Recording error (`recorder.onerror`) — calls `finish()` with the error message
+- `FileReader` failure during data URL conversion — shows failure status, sends error result to background
+- `chrome.downloads` failure in preview — checks `chrome.runtime.lastError`, displays error, re-enables save button
+- Discard — stops recorder and stream, clears chunks, sends error result `"Recording discarded"` to background; in preview, removes entry from storage array
+- Window closed manually — `onRemoved` listener in background rejects the Promise
+- `chrome.windows.create` failure — checks `chrome.runtime.lastError`, rejects immediately
+- Stream track ended (browser "Stop sharing") — triggers `stopRecording()` via the video track's `ended` event listener
+- Pause edge case — if recorder is paused when stop is clicked, `stopRecording()` calls `recorder.resume()` first so `onstop` fires correctly
+- Webcam unavailable — `webcam.html` catches the error and shows "Camera unavailable" text instead of crashing

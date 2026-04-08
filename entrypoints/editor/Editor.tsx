@@ -1304,7 +1304,7 @@ function Editor() {
                                     {elements.map(renderElement)}
                                     {currentElement && renderElement(currentElement)}
 
-                                    {cropRect && <Rect x={cropRect.width < 0 ? cropRect.x + cropRect.width : cropRect.x} y={cropRect.height < 0 ? cropRect.y + cropRect.height : cropRect.y} width={Math.abs(cropRect.width)} height={Math.abs(cropRect.height)} stroke="var(--brand-primary)" strokeWidth={2 / zoom} fill="rgba(99, 102, 241, 0.1)" dash={[5, 5]} />}
+                                    {cropRect && <Rect x={cropRect.width < 0 ? cropRect.x + cropRect.width : cropRect.x} y={cropRect.height < 0 ? cropRect.y + cropRect.height : cropRect.y} width={Math.abs(cropRect.width)} height={Math.abs(cropRect.height)} stroke="var(--brand-primary)" strokeWidth={2 / zoom} fill="rgba(8, 145, 178, 0.1)" dash={[5, 5]} />}
                                     <Transformer ref={transformerRef} boundBoxFunc={(oldBox, newBox) => (newBox.width < 5 || newBox.height < 5) ? oldBox : newBox} />
                                 </Layer>
                             </Stage>

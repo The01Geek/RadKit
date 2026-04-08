@@ -1,6 +1,6 @@
 # Capture Modes
 
-RadKit offers five capture modes to handle different screenshot scenarios. Open the RadKit popup by clicking the toolbar icon to access all modes.
+RadKit offers five screenshot capture modes and a full screen recording mode. Open the RadKit popup by clicking the toolbar icon to access all modes. The popup is organized into two tabs: **Capture** for screenshots and **Record** for video recording.
 
 ## Visible Viewport
 
@@ -62,6 +62,45 @@ Captures content outside the browser — your entire screen, a specific applicat
 4. The selected source is captured and the editor opens
 
 **Shortcut:** Press **Alt+D** to launch the screen or window picker without opening the popup.
+
+## Screen Recording
+
+Records your screen, a window or a browser tab as a WebM video file. All encoding happens locally — nothing is sent over the network.
+
+1. Click the **Record** tab in the popup
+2. Configure your recording settings:
+   - **Frame Rate**: 15, 24, 30 or 60 fps (default: 30 fps)
+   - **Audio**: Microphone, System audio, Both or None (default: Microphone)
+   - **Resolution**: Source (native), 720p, 1080p or 4K (default: Source)
+   - **Webcam Overlay**: Toggle on to display your webcam in a small circular window during recording
+3. Click **Start Recording**
+4. The browser displays a native source picker — choose a screen, window or tab
+5. A compact floating control bar appears with a timer and three buttons:
+   - **Pause** — pause and resume recording at any time
+   - **Stop** — finish recording and open the preview
+   - **Discard** — throw away the recording
+6. When you stop, a preview page opens in a new browser tab where you can play back your recording
+7. Click **Save Recording** to download the `.webm` file, or **Discard** to delete it
+
+There is no duration limit — record for as long as you need.
+
+**Tip:** If you enable the webcam overlay, a small circular camera window appears at the bottom right of your screen. You can drag it to any position across your screens. It is automatically captured as part of the screen recording.
+
+### Audio Recording
+
+To record system audio (for example, audio playing in a browser tab), select "System audio" or "Both" as the audio setting. When the browser's source picker appears, make sure to check the **Share audio** checkbox. If you do not check it, the recording will be video only.
+
+### Saved Recordings
+
+All recordings are automatically saved in your browser's local extension storage. Click **View saved recordings** in the Record tab to open a management page where you can:
+
+- Browse all past recordings with thumbnails, dates and file sizes
+- Download any recording
+- Delete individual recordings or clear all at once
+
+### Saved Screenshots
+
+Screenshots are also saved to extension storage. Click **View saved screenshots** in the Capture tab to browse, download or delete past captures.
 
 ## See Also
 
