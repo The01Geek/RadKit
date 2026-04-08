@@ -1,44 +1,55 @@
-# Recording (GIF / Video Capture) — Design Reference
+# Recording (Video Capture)
 
-> **Status**: Not yet implemented. This document captures the current state of related infrastructure and design considerations for the recording feature.
+> **Status**: Implemented. Screen/window/tab recording with a pre-record delay, pause/resume, stop, and discard controls.
 
-## Current State
+## Architecture
 
-RadKit's capture system is entirely **static** — every mode produces a single PNG screenshot. There is no recording, animation, or video capture functionality today.
+The recording feature follows the same popup-window pattern as `capture.html`/`capture.js`: a dedicated HTML page is opened via `chrome.windows.create`, which has the user activation needed for `getDisplayMedia`.
 
-### Relevant Existing Infrastructure
+### Files
 
-| Component | File | Relevance |
-|-----------|------|-----------|
-| `getDisplayMedia` popup window | `public/capture.html` + `public/capture.js` | Already opens a popup window with user activation to call `getDisplayMedia`. Recording will extend this pattern to keep the stream open instead of grabbing a single frame. |
-| Background orchestration | `entrypoints/background.ts` | `handleCapture()` switch dispatches by mode string. A new `'recording'` mode would be added here. |
-| Popup UI | `entrypoints/popup/App.tsx` | `CaptureMode` type union and capture card buttons. A new card for recording would be added. |
-| Editor | `entrypoints/editor/Editor.tsx` | Currently expects a static PNG data URL from `browser.storage.local`. Would need to either accept video/GIF blobs or the recording feature would bypass the editor entirely and offer direct download. |
-| Storage | `browser.storage.local` (`capturedImage` key) | Data URLs for large recordings may exceed storage limits. Video/GIF output may need `IndexedDB` or direct blob download instead. |
+| File | Role |
+|------|------|
+| `public/record.html` | Popup window UI — countdown overlay during delay, compact control bar during recording |
+| `public/record.js` | Recording logic — `getDisplayMedia`, `MediaRecorder`, pre-record delay, download via blob URL |
+| `entrypoints/background.ts` | `handleCapture('recording')` → `startRecordingWindow()` — opens the popup, listens for completion |
+| `entrypoints/popup/App.tsx` | "Record Screen" card in the popup, `CaptureMode` includes `'recording'` |
+| `entrypoints/editor/Icons.tsx` | `IconRecord` — concentric circle icon for the recording button |
+| `wxt.config.ts` | `downloads` permission added for saving recordings |
 
-### APIs Available in Extension Context
+### Flow
 
-- **`navigator.mediaDevices.getDisplayMedia()`** — already used in `capture.js` for screen/window/tab selection. Returns a `MediaStream` that can be piped to `MediaRecorder`.
-- **`MediaRecorder` API** — records a `MediaStream` into `webm` (VP8/VP9) or potentially other formats. Available in both Chrome and Edge.
-- **`OffscreenCanvas` / `ImageBitmap`** — already used in `stitchImages()` for full-page capture. Could be used for GIF frame extraction.
+1. User clicks "Record Screen" in the popup → sends `{ type: 'capture', mode: 'recording' }` to the background.
+2. `startRecordingWindow()` opens `record.html` in a small popup window.
+3. `record.js` runs:
+   - Calls `getDisplayMedia({ video: true, audio: true })` — the browser picker opens.
+   - User selects a screen, window, or tab.
+   - A `MediaRecorder` is constructed (VP9 preferred, VP8 fallback).
+   - **A `PRE_RECORD_DELAY_MS` (500ms) delay** gives the user time to switch windows or prepare.
+   - During the delay, a spinner with "Starting recording..." is shown.
+   - After the delay, `recorder.start(1000)` begins capturing.
+   - The UI switches to a compact control bar with: recording indicator, timer, Pause, Stop, Discard.
+4. On **Stop**: the recorded blob is downloaded directly via `URL.createObjectURL` + `chrome.downloads.download`, then a `recording-result` message is sent to the background.
+5. On **Discard**: recording stops, no download occurs, a `recording-result` message with `discarded: true` is sent.
+6. The background listener removes the popup window and resolves.
 
-### Key Constraints
+### Pre-Record Delay
 
-1. **Privacy model** — RadKit makes zero network requests. All recording/encoding must happen client-side.
-2. **MV3 service worker** — the background script cannot access DOM APIs. Any canvas/video processing must happen in a popup window, offscreen document, or content script.
-3. **User activation** — `getDisplayMedia` requires a transient user gesture. The existing popup window pattern (`chrome.windows.create`) solves this.
-4. **Storage limits** — `browser.storage.local` has a 10 MB default limit (even with `unlimitedStorage`). Video data should use blob URLs or IndexedDB rather than data URLs in storage.
+The `PRE_RECORD_DELAY_MS` constant (default: 500ms) is defined at the top of `public/record.js`. This delay exists between the `getDisplayMedia` picker closing and `recorder.start()` being called. During this time, a visual indicator (spinner + "Starting recording..." label) is shown so the user knows recording is about to begin.
 
-### File Locations for Implementation
+### Download Strategy
 
-New files that would likely be created:
+Recordings are downloaded directly from `record.js` using a blob URL (`URL.createObjectURL`) passed to `chrome.downloads.download`. This avoids passing large video data through `chrome.runtime.sendMessage`, which has practical size limits. The background script only receives a lightweight result message indicating success or discard.
 
-- `public/record.html` + `public/record.js` — popup window for recording (similar to `capture.html`/`capture.js`)
-- Or extend `public/capture.html`/`capture.js` to support both single-frame and recording modes
+### Edge Cases
 
-Files that would be modified:
+- **User closes the recording window manually**: A `chrome.windows.onRemoved` listener in the background detects this and cleans up the message listener, preventing leaks.
+- **Browser "Stop sharing" button**: The video track's `ended` event triggers `recorder.stop()`, which follows the normal stop flow.
+- **User cancels the picker**: `getDisplayMedia` throws, the catch block sends `{ success: false }`, and the window is closed.
 
-- `entrypoints/background.ts` — add `'recording'` case to `handleCapture()`, manage recording window lifecycle
-- `entrypoints/popup/App.tsx` — add recording card to the popup, extend `CaptureMode` type
-- `entrypoints/editor/Icons.tsx` — add a recording icon (e.g., `IconRecord`)
-- `wxt.config.ts` — no new permissions needed (`getDisplayMedia` and `MediaRecorder` are standard web APIs)
+### Constraints
+
+1. **Privacy model** — all recording and encoding happens client-side. No network requests.
+2. **MV3 service worker** — the background script cannot access DOM APIs. Recording happens in the popup window.
+3. **User activation** — `getDisplayMedia` requires a transient user gesture. The popup window pattern provides this.
+4. **Storage** — recordings bypass `browser.storage.local` entirely. Output is saved directly to disk via `chrome.downloads`.
