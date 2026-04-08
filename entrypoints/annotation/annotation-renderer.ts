@@ -232,10 +232,13 @@ function renderBlur(
   const pixelSize = 10;
   const { selectionRect } = state;
 
-  // The screenshot is of the full viewport; we need to map annotation coords
-  // (relative to selection rect) to screenshot coords
-  const srcX = selectionRect.x + el.x;
-  const srcY = selectionRect.y + el.y;
+  // The screenshot from captureVisibleTab is DPR-scaled
+  // Map annotation coords (CSS pixels relative to selection rect) to screenshot pixel coords
+  const dpr = window.devicePixelRatio || 1;
+  const srcX = (selectionRect.x + el.x) * dpr;
+  const srcY = (selectionRect.y + el.y) * dpr;
+  const srcW = w * dpr;
+  const srcH = h * dpr;
 
   const smallW = Math.max(1, Math.ceil(w / pixelSize));
   const smallH = Math.max(1, Math.ceil(h / pixelSize));
@@ -246,8 +249,8 @@ function renderBlur(
   const offCtx = offscreen.getContext('2d');
   if (!offCtx) return;
 
-  // Draw small version from screenshot
-  offCtx.drawImage(screenshotImg, srcX, srcY, w, h, 0, 0, smallW, smallH);
+  // Draw small version from screenshot (DPR-scaled source coords)
+  offCtx.drawImage(screenshotImg, srcX, srcY, srcW, srcH, 0, 0, smallW, smallH);
 
   // Draw back scaled up with no smoothing
   ctx.save();

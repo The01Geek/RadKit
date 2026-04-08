@@ -301,8 +301,7 @@ export default defineContentScript({
         mode: 'done',
       });
 
-      // Cleanup after a short delay (background captures first)
-      setTimeout(() => cleanup(), 100);
+      // Cleanup is handled by background via 'cleanup-selection' message after capture
     }
 
     function handleAnnotationEdit(elements: any[]) {
@@ -319,7 +318,7 @@ export default defineContentScript({
         mode: 'edit',
       });
 
-      setTimeout(() => cleanup(), 100);
+      // Cleanup is handled by background via 'cleanup-selection' message after capture
     }
 
     function hideOverlayForCapture() {

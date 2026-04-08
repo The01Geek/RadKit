@@ -521,8 +521,7 @@ export default defineBackground(() => {
                   break;
                 }
                 case 'image': {
-                  // Image annotations are stored as data URLs — load synchronously not possible
-                  // Skip for composite (images will show in editor)
+                  // Image annotations with data URL sources — rendered asynchronously below
                   break;
                 }
               }
@@ -530,7 +529,33 @@ export default defineBackground(() => {
             }
 
             ctx.restore();
-            resolve(canvas.toDataURL('image/png'));
+
+            // Second pass: render image annotations (async loading required)
+            const imageAnnotations = annotations.filter((el: any) => el.type === 'image' && el.imageSrc);
+            if (imageAnnotations.length > 0) {
+              let loaded = 0;
+              const tryResolve = () => {
+                loaded++;
+                if (loaded >= imageAnnotations.length) {
+                  resolve(canvas.toDataURL('image/png'));
+                }
+              };
+              ctx.save();
+              ctx.scale(dpr, dpr);
+              for (const el of imageAnnotations) {
+                const annImg = new Image();
+                annImg.onload = () => {
+                  ctx.globalAlpha = el.opacity ?? 1;
+                  ctx.drawImage(annImg, el.x, el.y, el.width ?? 200, el.height ?? 200);
+                  tryResolve();
+                };
+                annImg.onerror = () => tryResolve();
+                annImg.src = el.imageSrc;
+              }
+              ctx.restore();
+            } else {
+              resolve(canvas.toDataURL('image/png'));
+            }
           };
           img.src = croppedDataUrl;
         });

@@ -38,7 +38,7 @@ export function initAnnotationMode(
     top: ${selectionRect.y}px !important;
     width: ${selectionRect.w}px !important;
     height: ${selectionRect.h}px !important;
-    z-index: 2147483648 !important;
+    z-index: 2147483646 !important;
     cursor: crosshair !important;
     pointer-events: auto !important;
   `;
@@ -258,7 +258,7 @@ export function initAnnotationMode(
       border: 2px solid hsl(187, 92%, 43%) !important;
       border-radius: 4px !important;
       padding: 4px !important;
-      z-index: 2147483650 !important;
+      z-index: 2147483647 !important;
       outline: none !important;
       resize: both !important;
       overflow: hidden !important;

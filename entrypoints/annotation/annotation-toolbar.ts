@@ -11,7 +11,7 @@ const TOOLBAR_CSS = `
 }
 .ann-container {
   position: fixed;
-  z-index: 2147483649;
+  z-index: 2147483647;
   pointer-events: auto;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 13px;

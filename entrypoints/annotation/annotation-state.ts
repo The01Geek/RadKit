@@ -27,10 +27,10 @@ export function pushHistory(state: AnnotationState): void {
   // Discard any future history (after undo)
   state.history = state.history.slice(0, state.historyIndex + 1);
   state.history.push(deepClone(state.elements));
+  state.historyIndex = state.history.length - 1;
   if (state.history.length > MAX_HISTORY) {
     state.history.shift();
-  } else {
-    state.historyIndex++;
+    state.historyIndex = state.history.length - 1;
   }
 }
 
