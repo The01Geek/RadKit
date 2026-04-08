@@ -522,7 +522,7 @@ export default defineBackground(() => {
   }
 
   async function startRecordingWindow(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve) => {
       chrome.windows.create(
         {
           url: chrome.runtime.getURL('/record.html'),
@@ -532,30 +532,27 @@ export default defineBackground(() => {
           focused: true,
         },
         (win) => {
-          const listener = (message: any) => {
+          function cleanup() {
+            browser.runtime.onMessage.removeListener(messageListener);
+            chrome.windows.onRemoved.removeListener(windowClosedListener);
+          }
+
+          const messageListener = (message: any) => {
             if (message.type !== 'recording-result') return;
-            browser.runtime.onMessage.removeListener(listener);
-            if (win?.id) chrome.windows.remove(win.id);
-
-            if (message.discarded) {
-              resolve();
-              return;
-            }
-
-            if (message.success && message.dataUrl) {
-              // Trigger a download of the recorded video
-              const link = `data:${message.mimeType || 'video/webm'};base64,` +
-                message.dataUrl.split(',')[1];
-              chrome.downloads.download({
-                url: link,
-                filename: `radkit-recording-${Date.now()}.webm`,
-                saveAs: true,
-              });
-            }
-
+            cleanup();
+            if (win?.id) chrome.windows.remove(win.id).catch(() => {});
             resolve();
           };
-          browser.runtime.onMessage.addListener(listener);
+
+          const windowClosedListener = (windowId: number) => {
+            if (windowId === win?.id) {
+              cleanup();
+              resolve();
+            }
+          };
+
+          browser.runtime.onMessage.addListener(messageListener);
+          chrome.windows.onRemoved.addListener(windowClosedListener);
         }
       );
     });

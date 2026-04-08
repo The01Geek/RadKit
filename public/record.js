@@ -7,7 +7,7 @@
  *   3. A short delay (PRE_RECORD_DELAY_MS) gives the user time to prepare.
  *   4. recorder.start() begins capturing.
  *   5. Control bar provides pause / resume / stop / discard.
- *   6. On stop the recorded webm blob is sent back to the extension.
+ *   6. On stop the recorded webm is downloaded directly via blob URL.
  */
 
 // Delay (ms) between the screen-picker closing and recording starting.
@@ -64,6 +64,7 @@ const PRE_RECORD_DELAY_MS = 500;
 
     // 2. Construct the MediaRecorder
     const chunks = [];
+    let discarded = false;
     const recorder = new MediaRecorder(stream, {
       mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
         ? 'video/webm;codecs=vp9'
@@ -114,31 +115,35 @@ const PRE_RECORD_DELAY_MS = 500;
     });
 
     btnDiscard.addEventListener('click', () => {
-      // Stop without saving
+      discarded = true;
       recorder.ondataavailable = null;
       chunks.length = 0;
       recorder.stop();
-      stream.getTracks().forEach((t) => t.stop());
-      stopTimer();
-      sendResult({ success: true, discarded: true });
     });
 
-    // 5. When recording finishes, package the blob and send it back
+    // 5. When recording finishes, download directly via blob URL
     recorder.onstop = () => {
       stream.getTracks().forEach((t) => t.stop());
       stopTimer();
 
-      if (chunks.length === 0) {
-        // Discarded — result already sent from the discard handler
+      if (discarded || chunks.length === 0) {
+        sendResult({ success: true, discarded: true });
         return;
       }
 
       const blob = new Blob(chunks, { type: recorder.mimeType });
-      const reader = new FileReader();
-      reader.onload = () => {
-        sendResult({ success: true, dataUrl: reader.result, mimeType: recorder.mimeType });
-      };
-      reader.readAsDataURL(blob);
+      const url = URL.createObjectURL(blob);
+      chrome.downloads.download(
+        {
+          url: url,
+          filename: `radkit-recording-${Date.now()}.webm`,
+          saveAs: true,
+        },
+        () => {
+          URL.revokeObjectURL(url);
+          sendResult({ success: true, downloaded: true });
+        }
+      );
     };
   } catch (err) {
     sendResult({ success: false, error: err.message });
