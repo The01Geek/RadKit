@@ -284,6 +284,9 @@ export function createAnnotationToolbar(
       callbacks.onImageUpload(reader.result as string);
       callbacks.onToolChange('image');
     };
+    reader.onerror = () => {
+      console.error('Failed to read image file:', reader.error);
+    };
     reader.readAsDataURL(file);
     fileInput.value = '';
   });

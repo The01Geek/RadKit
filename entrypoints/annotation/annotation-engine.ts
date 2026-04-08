@@ -24,7 +24,9 @@ export function initAnnotationMode(
 
   // Preload screenshot for blur tool
   if (screenshotDataUrl) {
-    preloadScreenshot(screenshotDataUrl);
+    preloadScreenshot(screenshotDataUrl).catch((err) => {
+      console.warn('Failed to preload screenshot for blur tool:', err);
+    });
   }
 
   // Create the annotation canvas

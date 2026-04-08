@@ -299,9 +299,10 @@ export default defineContentScript({
         rect,
         annotations,
         mode: 'done',
+      }).catch((err) => {
+        console.error('Failed to send selection-complete (done):', err);
+        cleanup();
       });
-
-      // Cleanup is handled by background via 'cleanup-selection' message after capture
     }
 
     function handleAnnotationEdit(elements: any[]) {
@@ -316,9 +317,10 @@ export default defineContentScript({
         rect,
         annotations,
         mode: 'edit',
+      }).catch((err) => {
+        console.error('Failed to send selection-complete (edit):', err);
+        cleanup();
       });
-
-      // Cleanup is handled by background via 'cleanup-selection' message after capture
     }
 
     function hideOverlayForCapture() {

@@ -390,6 +390,10 @@ export default defineBackground(() => {
       func: (croppedDataUrl: string, annotations: any[]) => {
         return new Promise<string>((resolve) => {
           const img = new Image();
+          img.onerror = () => {
+            console.error('compositeAnnotations: Failed to load cropped image');
+            resolve(croppedDataUrl);
+          };
           img.onload = () => {
             const canvas = document.createElement('canvas');
             canvas.width = img.width;

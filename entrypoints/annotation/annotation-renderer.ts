@@ -290,6 +290,8 @@ function renderImage(
     // Async load — trigger repaint when loaded
     loadImage(el.imageSrc).then(() => {
       if (repaintCallback) repaintCallback();
+    }).catch((err) => {
+      console.warn('Failed to load image annotation:', err);
     });
     // Draw placeholder
     ctx.save();
