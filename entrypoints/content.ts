@@ -136,6 +136,11 @@ export default defineContentScript({
       }
     });
 
+    // Clean up webcam stream if the page navigates away
+    window.addEventListener('beforeunload', () => {
+      stopWebcamOverlay();
+    });
+
     function createSelectionOverlay() {
       cleanup();
 
@@ -410,11 +415,20 @@ export default defineContentScript({
       }).then((stream) => {
         webcamStream = stream;
         video.srcObject = stream;
-      }).catch(() => {
+      }).catch((err: DOMException) => {
+        console.warn('Webcam access failed:', err.name, err.message);
         container.innerHTML = '';
         const errorEl = document.createElement('div');
         errorEl.className = 'radkit-webcam-error';
-        errorEl.textContent = 'Camera unavailable';
+        if (err.name === 'NotAllowedError') {
+          errorEl.textContent = 'Camera permission denied';
+        } else if (err.name === 'NotFoundError') {
+          errorEl.textContent = 'No camera found';
+        } else if (err.name === 'NotReadableError') {
+          errorEl.textContent = 'Camera in use by another app';
+        } else {
+          errorEl.textContent = 'Camera unavailable';
+        }
         container.appendChild(errorEl);
       });
 
@@ -509,7 +523,7 @@ export default defineContentScript({
       }
     }
 
-    // ── Selection overlay ────────────────────────────────────────────
+    // ── Selection overlay cleanup ────────────────────────────────────
     function cleanup() {
       console.log('Running robust cleanup...');
 

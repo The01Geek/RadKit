@@ -29,20 +29,36 @@ export default defineBackground(() => {
     // Ensure the content script is injected before sending
     if (type === 'start-webcam-overlay') {
       const possiblePaths = ['content-scripts/content.js', 'content.js'];
+      let injected = false;
       for (const path of possiblePaths) {
         try {
           await chrome.scripting.executeScript({
             target: { tabId },
             files: [path],
           });
+          injected = true;
           break;
-        } catch (e) { /* script may already be loaded */ }
+        } catch (e) { /* path may not exist or script already loaded — try next */ }
       }
-      // Brief delay to ensure content script is ready
-      await new Promise(resolve => setTimeout(resolve, 100));
+      if (!injected) {
+        console.warn('Content script injection failed — assuming already loaded via manifest');
+      }
     }
 
-    await browser.tabs.sendMessage(tabId, { type });
+    // Retry message delivery with backoff in case content script is still initializing
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await browser.tabs.sendMessage(tabId, { type });
+        return;
+      } catch (e) {
+        lastError = e;
+        if (attempt < 2) {
+          await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+        }
+      }
+    }
+    throw new Error(`Failed to send ${type} to tab ${tabId}: ${lastError}`);
   }
 
   // Listen for messages from popup
@@ -190,7 +206,7 @@ export default defineBackground(() => {
   }
 
   async function captureRecording(): Promise<{ success: boolean; error?: string }> {
-    // Save the active tab ID so record.js can target it for the webcam overlay
+    // Save the active tab ID so the background relay can target it for the webcam overlay
     const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (activeTab?.id) {
       await browser.storage.local.set({ recordingTabId: activeTab.id });
