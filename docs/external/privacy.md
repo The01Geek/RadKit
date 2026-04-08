@@ -8,18 +8,18 @@ RadKit makes no network requests of any kind. There are no analytics, telemetry,
 
 ## Local Processing Only
 
-All screenshot capture, editing and export happens within your browser:
+All capture, editing, recording and export happens within your browser:
 
-- **Capture**: Screenshots are taken using built-in browser capabilities
-- **Storage**: Captured images are stored temporarily in local browser storage
+- **Screenshots**: Captured using built-in browser APIs, stored in local extension storage, and edited entirely on your device
+- **Screen recordings**: Assembled into WebM video files locally — audio (microphone/system) and webcam overlays are processed on-device and never transmitted
 - **Editing**: All annotation and cropping is performed locally in the editor
 - **Fonts**: All fonts are bundled with the extension — no external font services are used
 
 ## Data Handling
 
-- Screenshots are stored in your browser's local extension storage while you are editing them
-- Exported files are saved directly to your device or copied to your local clipboard
-- No data persists beyond your active editing session unless you explicitly save or download the file
+- Screenshots and recordings are stored in your browser's local extension storage
+- Exported files are saved directly to your device via the downloads API or copied to your local clipboard
+- Capture history persists in local storage until you explicitly delete it
 
 ## Permissions
 
@@ -27,9 +27,11 @@ RadKit requests the following browser permissions, each with a specific purpose:
 
 | Permission | Why It Is Needed |
 |------------|-----------------|
-| **Active tab** | Access the current tab to capture its contents |
-| **Storage** | Temporarily store captured images for editing |
-| **Scripting** | Enable the area selection overlay and full-page capture |
+| **activeTab** | Access the current tab to capture its contents |
+| **storage** | Store captured screenshots and recordings locally in the browser |
+| **unlimitedStorage** | Allow larger recordings and capture history without hitting browser quota limits |
+| **scripting** | Inject the area-selection overlay and full-page capture scripts into the active tab |
+| **downloads** | Save exported images and recordings to your device |
 
 ## See Also
 
