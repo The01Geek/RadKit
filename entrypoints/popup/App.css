@@ -114,6 +114,17 @@ body {
     cursor: not-allowed;
 }
 
+.capture-card.active {
+    background: rgba(161, 115, 254, 0.15);
+    border-color: rgba(161, 115, 254, 0.5);
+    box-shadow: 0 0 16px var(--accent-glow);
+}
+
+.capture-card.active .icon-wrap {
+    background: var(--accent);
+    color: #ffffff;
+}
+
 .capture-card .icon-wrap {
     display: flex;
     align-items: center;

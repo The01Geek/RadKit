@@ -281,3 +281,12 @@ export const IconTimer = () => (
         <line x1="10" y1="1" x2="14" y2="1" />
     </svg>
 );
+
+export const IconWebcam = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="10" r="7" />
+        <circle cx="12" cy="10" r="3" />
+        <path d="M7 20h10" />
+        <path d="M12 17v3" />
+    </svg>
+);

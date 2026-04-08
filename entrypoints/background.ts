@@ -20,6 +20,9 @@ export default defineBackground(() => {
     }
   }
 
+  // Track webcam overlay state
+  let webcamTabId: number | null = null;
+
   // Listen for messages from popup
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'capture') {
@@ -36,12 +39,67 @@ export default defineBackground(() => {
       return true;
     }
 
+    if (message.type === 'toggle-webcam') {
+      handleWebcamToggle(message.action)
+        .then((result) => sendResponse(result))
+        .catch((error: any) => {
+          console.error('Webcam error:', error);
+          sendResponse({ success: false, error: error.message || 'Webcam failed' });
+        });
+      return true;
+    }
+
+    if (message.type === 'webcam-overlay-ready') {
+      return false;
+    }
+
+    if (message.type === 'webcam-overlay-error') {
+      console.error('Webcam overlay error:', message.error);
+      webcamTabId = null;
+      return false;
+    }
+
     if (message.type === 'selection-complete') {
       return false; // Handled by waitForSelection
     }
 
     return false;
   });
+
+  async function handleWebcamToggle(action: string): Promise<{ success: boolean; error?: string }> {
+    if (action === 'stop') {
+      if (webcamTabId != null) {
+        await browser.tabs.sendMessage(webcamTabId, { type: 'stop-webcam-overlay' }).catch(() => {});
+        webcamTabId = null;
+      }
+      return { success: true };
+    }
+
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) throw new Error('No active tab');
+
+    // Inject the webcam overlay content script
+    const possiblePaths = ['content-scripts/webcam-overlay.js', 'webcam-overlay.js'];
+    for (const path of possiblePaths) {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: [path],
+        });
+        break;
+      } catch (e) { }
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    try {
+      await browser.tabs.sendMessage(tab.id, { type: 'start-webcam-overlay' });
+      webcamTabId = tab.id;
+      return { success: true };
+    } catch (e) {
+      throw new Error('Could not connect to the page. Please refresh and try again.');
+    }
+  }
 
   // Listen for keyboard shortcuts
   chrome.commands.onCommand.addListener(async (command) => {

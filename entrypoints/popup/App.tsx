@@ -1,12 +1,33 @@
 import React, { useState } from 'react';
 import './App.css';
-import { IconMonitor, IconSelection, IconFile, IconTimer, IconDesktop } from '../editor/Icons';
+import { IconMonitor, IconSelection, IconFile, IconTimer, IconDesktop, IconWebcam } from '../editor/Icons';
 
 type CaptureMode = 'visible' | 'selection' | 'fullpage' | 'visible-delayed' | 'desktop';
+type WebcamState = 'off' | 'starting' | 'on';
 
 function App() {
     const [isCapturing, setIsCapturing] = useState(false);
     const [status, setStatus] = useState('');
+    const [webcamState, setWebcamState] = useState<WebcamState>('off');
+
+    const handleWebcamToggle = async () => {
+        if (webcamState === 'on') {
+            await browser.runtime.sendMessage({ type: 'toggle-webcam', action: 'stop' });
+            setWebcamState('off');
+            setStatus('');
+        } else {
+            setWebcamState('starting');
+            setStatus('Starting webcam...');
+            const response = await browser.runtime.sendMessage({ type: 'toggle-webcam', action: 'start' });
+            if (response?.success) {
+                setWebcamState('on');
+                setStatus('Webcam overlay active');
+            } else {
+                setWebcamState('off');
+                setStatus(response?.error || 'Webcam failed');
+            }
+        }
+    };
 
     const handleCapture = async (mode: CaptureMode) => {
         setIsCapturing(true);
@@ -96,6 +117,18 @@ function App() {
                     <div className="card-content">
                         <span className="card-label">Screen / Window</span>
                         <span className="card-desc">Capture screen or app window</span>
+                    </div>
+                </button>
+
+                <button
+                    className={`capture-card${webcamState === 'on' ? ' active' : ''}`}
+                    onClick={handleWebcamToggle}
+                    disabled={isCapturing || webcamState === 'starting'}
+                >
+                    <span className="icon-wrap"><IconWebcam /></span>
+                    <div className="card-content">
+                        <span className="card-label">{webcamState === 'on' ? 'Hide Webcam' : 'Webcam Overlay'}</span>
+                        <span className="card-desc">{webcamState === 'on' ? 'Remove webcam bubble from page' : 'Show webcam bubble on page'}</span>
                     </div>
                 </button>
             </div>
