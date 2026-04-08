@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import './App.css';
-import { IconMonitor, IconSelection, IconFile, IconTimer, IconDesktop } from '../editor/Icons';
+import { IconMonitor, IconSelection, IconFile, IconTimer, IconDesktop, IconRecord } from '../editor/Icons';
 
-type CaptureMode = 'visible' | 'selection' | 'fullpage' | 'visible-delayed' | 'desktop';
+type CaptureMode = 'visible' | 'selection' | 'fullpage' | 'visible-delayed' | 'desktop' | 'recording';
 
 function App() {
     const [isCapturing, setIsCapturing] = useState(false);
@@ -96,6 +96,18 @@ function App() {
                     <div className="card-content">
                         <span className="card-label">Screen / Window</span>
                         <span className="card-desc">Capture screen or app window</span>
+                    </div>
+                </button>
+
+                <button
+                    className="capture-card"
+                    onClick={() => handleCapture('recording')}
+                    disabled={isCapturing}
+                >
+                    <span className="icon-wrap"><IconRecord /></span>
+                    <div className="card-content">
+                        <span className="card-label">Record Screen</span>
+                        <span className="card-desc">Record screen, window, or tab</span>
                     </div>
                 </button>
             </div>

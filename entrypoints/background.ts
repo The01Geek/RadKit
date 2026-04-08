@@ -77,6 +77,9 @@ export default defineBackground(() => {
         case 'desktop':
           imageDataUrl = await captureDesktopMedia();
           break;
+        case 'recording':
+          await startRecordingWindow();
+          return { success: true };
         default:
           throw new Error('Unknown capture mode');
       }
@@ -515,6 +518,46 @@ export default defineBackground(() => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
       reader.readAsDataURL(blob);
+    });
+  }
+
+  async function startRecordingWindow(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      chrome.windows.create(
+        {
+          url: chrome.runtime.getURL('/record.html'),
+          type: 'popup',
+          width: 320,
+          height: 160,
+          focused: true,
+        },
+        (win) => {
+          const listener = (message: any) => {
+            if (message.type !== 'recording-result') return;
+            browser.runtime.onMessage.removeListener(listener);
+            if (win?.id) chrome.windows.remove(win.id);
+
+            if (message.discarded) {
+              resolve();
+              return;
+            }
+
+            if (message.success && message.dataUrl) {
+              // Trigger a download of the recorded video
+              const link = `data:${message.mimeType || 'video/webm'};base64,` +
+                message.dataUrl.split(',')[1];
+              chrome.downloads.download({
+                url: link,
+                filename: `radkit-recording-${Date.now()}.webm`,
+                saveAs: true,
+              });
+            }
+
+            resolve();
+          };
+          browser.runtime.onMessage.addListener(listener);
+        }
+      );
     });
   }
 });
