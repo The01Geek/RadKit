@@ -20,6 +20,31 @@ export default defineBackground(() => {
     }
   }
 
+  // Relay webcam overlay messages to the recorded tab's content script
+  async function relayWebcamMessage(type: string) {
+    const data = await browser.storage.local.get('recordingTabId');
+    const tabId = data.recordingTabId;
+    if (!tabId) throw new Error('No recording tab ID found');
+
+    // Ensure the content script is injected before sending
+    if (type === 'start-webcam-overlay') {
+      const possiblePaths = ['content-scripts/content.js', 'content.js'];
+      for (const path of possiblePaths) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId },
+            files: [path],
+          });
+          break;
+        } catch (e) { /* script may already be loaded */ }
+      }
+      // Brief delay to ensure content script is ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    await browser.tabs.sendMessage(tabId, { type });
+  }
+
   // Listen for messages from popup
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'capture') {
@@ -38,6 +63,13 @@ export default defineBackground(() => {
 
     if (message.type === 'selection-complete') {
       return false; // Handled by waitForSelection
+    }
+
+    if (message.type === 'start-webcam-overlay' || message.type === 'stop-webcam-overlay') {
+      relayWebcamMessage(message.type)
+        .then(() => sendResponse({ success: true }))
+        .catch((error: any) => sendResponse({ success: false, error: error.message }));
+      return true;
     }
 
     return false;
@@ -158,6 +190,12 @@ export default defineBackground(() => {
   }
 
   async function captureRecording(): Promise<{ success: boolean; error?: string }> {
+    // Save the active tab ID so record.js can target it for the webcam overlay
+    const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+    if (activeTab?.id) {
+      await browser.storage.local.set({ recordingTabId: activeTab.id });
+    }
+
     return new Promise((resolve, reject) => {
       chrome.windows.create(
         {
