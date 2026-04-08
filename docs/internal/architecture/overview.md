@@ -12,12 +12,16 @@ RadKit is a browser extension built with the [WXT](https://wxt.dev/) framework, 
 ├──────────────────────────────────────────────────────┤
 │  Background Script (Service Worker)                  │
 │  entrypoints/background.ts                           │
-│  Handles capture orchestration, keyboard shortcuts,  │
-│  and cross-component messaging                       │
+│  Handles capture orchestration, webcam overlay        │
+│  toggling, keyboard shortcuts, and messaging         │
 ├──────────────────────────────────────────────────────┤
-│  Content Script                                      │
+│  Content Script (Selection)                           │
 │  entrypoints/content.ts + selection.css               │
 │  Injected into web pages for area-selection overlay   │
+├──────────────────────────────────────────────────────┤
+│  Content Script (Webcam Overlay)                      │
+│  entrypoints/webcam-overlay.ts                        │
+│  Injected into web pages for circular webcam bubble   │
 ├──────────────────────────────────────────────────────┤
 │  Editor Page                                         │
 │  entrypoints/editor/                                 │
@@ -65,6 +69,7 @@ RadKit makes **zero external network requests**. All fonts are bundled locally (
 entrypoints/
 ├── background.ts        # Service worker — capture orchestration
 ├── content.ts           # Content script — area selection overlay
+├── webcam-overlay.ts    # Content script — webcam bubble overlay
 ├── selection.css         # Styles for the selection UI
 ├── popup/               # Extension popup
 │   ├── index.html
