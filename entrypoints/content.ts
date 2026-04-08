@@ -458,7 +458,7 @@ export default defineContentScript({
       document.getElementById('screenshot-annotation-host')?.remove();
 
       // Remove text input if open
-      const textInputs = document.querySelectorAll('textarea[style*="2147483650"]');
+      const textInputs = document.querySelectorAll('textarea[data-radkit-annotation-text]');
       textInputs.forEach(el => el.remove());
 
       // Remove via ID-based root first

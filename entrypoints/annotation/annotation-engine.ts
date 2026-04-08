@@ -1,7 +1,7 @@
 import type { AnnotationElement, AnnotationCallbacks, AnnotationTool, AnnotationState } from './annotation-types';
 import { createDefaultState } from './annotation-types';
 import { addElement, undo, redo, canUndo, canRedo } from './annotation-state';
-import { renderAll, preloadScreenshot } from './annotation-renderer';
+import { renderAll, preloadScreenshot, setRepaintCallback, clearCaches } from './annotation-renderer';
 import { createAnnotationToolbar, type ToolbarHandles } from './annotation-toolbar';
 
 export interface AnnotationEngine {
@@ -91,6 +91,9 @@ export function initAnnotationMode(
 
   toolbar.updatePosition(selectionRect);
   toolbar.setUndoRedoState(false, false);
+
+  // Set repaint callback so async image loads trigger re-render
+  setRepaintCallback(() => paint());
 
   function paint() {
     renderAll(canvas, state);
@@ -245,6 +248,7 @@ export function initAnnotationMode(
     const canvasRect = canvas.getBoundingClientRect();
 
     textInput = document.createElement('textarea');
+    textInput.setAttribute('data-radkit-annotation-text', '');
     textInput.style.cssText = `
       position: fixed !important;
       left: ${canvasRect.left + x}px !important;
@@ -343,6 +347,7 @@ export function initAnnotationMode(
     document.removeEventListener('keydown', handleKeyDown, true);
     canvas.remove();
     toolbar.destroy();
+    clearCaches();
     if (textInput) {
       textInput.remove();
       textInput = null;

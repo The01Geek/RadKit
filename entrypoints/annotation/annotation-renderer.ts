@@ -3,6 +3,20 @@ import type { AnnotationElement, AnnotationState } from './annotation-types';
 // Cache loaded images for the image tool
 const imageCache = new Map<string, HTMLImageElement>();
 
+// Repaint callback set by the engine
+let repaintCallback: (() => void) | null = null;
+
+export function setRepaintCallback(cb: (() => void) | null): void {
+  repaintCallback = cb;
+}
+
+export function clearCaches(): void {
+  imageCache.clear();
+  screenshotImg = null;
+  screenshotSrc = null;
+  repaintCallback = null;
+}
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   const cached = imageCache.get(src);
   if (cached) return Promise.resolve(cached);
@@ -273,9 +287,9 @@ function renderImage(
   if (img) {
     ctx.drawImage(img, el.x, el.y, w, h);
   } else {
-    // Async load — will render on next paint
+    // Async load — trigger repaint when loaded
     loadImage(el.imageSrc).then(() => {
-      // The engine will re-render
+      if (repaintCallback) repaintCallback();
     });
     // Draw placeholder
     ctx.save();
