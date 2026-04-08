@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RadKit — Recording Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .container {
+    text-align: center;
+    padding: 40px 24px;
+    width: 100%;
+    max-width: 900px;
+  }
+  h1 {
+    font-size: 22px;
+    margin-bottom: 24px;
+    color: #fff;
+  }
+  h1 .accent { color: #e53935; }
+  video {
+    width: 100%;
+    max-height: 70vh;
+    border-radius: 10px;
+    background: #000;
+    margin-bottom: 20px;
+  }
+  .actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+  }
+  .btn {
+    padding: 12px 36px;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-save { background: #43a047; color: #fff; }
+  .btn-save:hover { background: #388e3c; }
+  .btn-discard { background: #555; color: #fff; }
+  .btn-discard:hover { background: #444; }
+  .status {
+    margin-top: 16px;
+    font-size: 14px;
+    color: #aaa;
+    min-height: 22px;
+  }
+  .loading {
+    font-size: 16px;
+    color: #aaa;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Rad<span class="accent">Kit</span> — Recording Preview</h1>
+  <div id="loading" class="loading">Loading recording…</div>
+  <video id="video" controls style="display:none;"></video>
+  <div id="actionsWrap" class="actions" style="display:none;">
+    <button class="btn btn-save" id="saveBtn">Save Recording</button>
+    <button class="btn btn-discard" id="discardBtn">Discard</button>
+  </div>
+  <div class="status" id="status"></div>
+</div>
+<script src="preview.js"></script>
+</body>
+</html>

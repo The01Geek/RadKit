@@ -14,98 +14,93 @@
     justify-content: center;
     height: 100vh;
     overflow: hidden;
+    user-select: none;
   }
-  .container {
+
+  /* ---------- pre-recording splash ---------- */
+  .splash {
     text-align: center;
-    padding: 32px;
-    width: 100%;
-    max-width: 400px;
-  }
-  h2 {
-    font-size: 18px;
-    margin-bottom: 24px;
-    color: #fff;
-  }
-  .controls {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    align-items: center;
-  }
-  .options {
-    display: flex;
-    gap: 16px;
-    justify-content: center;
-    width: 100%;
-  }
-  .option-group {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .option-group label {
-    font-size: 12px;
-    color: #aaa;
-    text-align: left;
-  }
-  select {
-    padding: 8px 12px;
-    border-radius: 8px;
-    border: 1px solid #333;
-    background: #2a2a3e;
-    color: #fff;
-    font-size: 14px;
-    cursor: pointer;
-  }
-  .btn {
-    padding: 12px 32px;
-    border: none;
-    border-radius: 10px;
     font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
+    color: #aaa;
   }
-  .btn:active { transform: scale(0.97); }
-  .btn-start {
+
+  /* ---------- control bar ---------- */
+  .bar {
+    display: none;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 18px;
+    width: 100%;
+    justify-content: center;
+  }
+  .bar.visible { display: flex; }
+
+  /* recording dot */
+  .rec-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
     background: #e53935;
-    color: #fff;
+    flex-shrink: 0;
+    animation: pulse 1s infinite;
   }
-  .btn-start:hover { background: #c62828; }
-  .btn-stop {
-    background: #555;
-    color: #fff;
+  .rec-dot.paused {
+    background: #ffa726;
+    animation: none;
   }
-  .btn-stop:hover { background: #444; }
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+
   .timer {
-    font-size: 48px;
+    font-size: 22px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: #fff;
-    margin: 8px 0;
+    min-width: 56px;
+    text-align: center;
   }
-  .timer.recording-active {
-    color: #e53935;
+
+  .divider {
+    width: 1px;
+    height: 22px;
+    background: rgba(255,255,255,0.15);
+    flex-shrink: 0;
   }
+
+  .bar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.08);
+    color: #e0e0e0;
+  }
+  .bar-btn:hover { background: rgba(255,255,255,0.15); }
+  .bar-btn:active { transform: scale(0.92); }
+  .bar-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .bar-btn.stop { background: rgba(229,57,53,0.2); color: #e53935; }
+  .bar-btn.stop:hover { background: rgba(229,57,53,0.35); }
+
+  .bar-btn.discard { background: rgba(255,255,255,0.05); color: #888; }
+  .bar-btn.discard:hover { background: rgba(255,80,80,0.15); color: #e53935; }
+
+  .bar-btn svg { width: 18px; height: 18px; }
+
+  /* status text (shown during save) */
   .status {
+    display: none;
+    text-align: center;
     font-size: 13px;
     color: #aaa;
-    min-height: 20px;
+    padding: 10px;
   }
-  .pulse {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: #e53935;
-    margin-right: 6px;
-    animation: pulse 1s infinite;
-    vertical-align: middle;
-  }
+  .status.visible { display: block; }
+
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
@@ -113,37 +108,32 @@
 </style>
 </head>
 <body>
-<div class="container">
-  <h2>Screen Recording</h2>
-  <div class="controls">
-    <div class="options" id="options">
-      <div class="option-group">
-        <label>Duration limit</label>
-        <select id="duration">
-          <option value="10">10 seconds</option>
-          <option value="15">15 seconds</option>
-          <option value="30" selected>30 seconds</option>
-          <option value="45">45 seconds</option>
-          <option value="60">60 seconds</option>
-        </select>
-      </div>
-      <div class="option-group">
-        <label>Frame rate</label>
-        <select id="framerate">
-          <option value="15">15 fps</option>
-          <option value="24">24 fps</option>
-          <option value="30" selected>30 fps</option>
-        </select>
-      </div>
-    </div>
-    <div class="timer" id="timer">0:00</div>
-    <div>
-      <button class="btn btn-start" id="startBtn">Start Recording</button>
-      <button class="btn btn-stop" id="stopBtn" style="display:none;">Stop Recording</button>
-    </div>
-    <div class="status" id="status">Choose settings and click Start</div>
-  </div>
+
+<div class="splash" id="splash">Select a screen to record…</div>
+
+<div class="bar" id="bar">
+  <span class="rec-dot" id="recDot"></span>
+  <span class="timer" id="timer">0:00</span>
+  <span class="divider"></span>
+
+  <!-- Pause / Resume -->
+  <button class="bar-btn" id="pauseBtn" title="Pause">
+    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+  </button>
+
+  <!-- Stop (finish & save) -->
+  <button class="bar-btn stop" id="stopBtn" title="Stop & Save">
+    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+  </button>
+
+  <!-- Discard -->
+  <button class="bar-btn discard" id="discardBtn" title="Discard">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  </button>
 </div>
+
+<div class="status" id="status"></div>
+
 <script src="record.js"></script>
 </body>
 </html>

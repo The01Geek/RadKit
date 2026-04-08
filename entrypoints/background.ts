@@ -84,6 +84,20 @@ export default defineBackground(() => {
       }
 
       await browser.storage.local.set({ capturedImage: imageDataUrl });
+
+      // Persist to screenshots history
+      const entry = {
+        id: 'ss_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+        timestamp: new Date().toISOString(),
+        mode,
+        size: imageDataUrl.length,
+        dataUrl: imageDataUrl,
+      };
+      const stored = await browser.storage.local.get({ screenshots: [] });
+      const screenshots = stored.screenshots || [];
+      screenshots.unshift(entry);
+      await browser.storage.local.set({ screenshots });
+
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
       await browser.tabs.create({ url: browser.runtime.getURL('/editor.html') });
       await broadcastCleanup(tab?.id);
@@ -149,8 +163,8 @@ export default defineBackground(() => {
         {
           url: chrome.runtime.getURL('/record.html'),
           type: 'popup',
-          width: 480,
-          height: 400,
+          width: 1024,
+          height: 768,
           focused: true,
         },
         (win) => {
@@ -167,16 +181,28 @@ export default defineBackground(() => {
           };
 
           const messageListener = (message: any) => {
-            if (message.type !== 'recording-result') return;
-            if (settled) return;
-            settled = true;
-            cleanup();
-            // Delay window close briefly to let the download start
-            setTimeout(() => { if (win?.id) chrome.windows.remove(win.id); }, 500);
-            if (message.success) {
+            if (message.type === 'recording-preview-ready') {
+              // Recording finished — close the small popup and open preview in a real tab
+              if (settled) return;
+              settled = true;
+              cleanup();
+              if (win?.id) chrome.windows.remove(win.id);
+              chrome.tabs.create({ url: chrome.runtime.getURL('/preview.html') });
               resolve({ success: true });
-            } else {
-              reject(new Error(message.error || 'Recording failed'));
+              return;
+            }
+
+            if (message.type === 'recording-result') {
+              if (settled) return;
+              settled = true;
+              cleanup();
+              if (win?.id) chrome.windows.remove(win.id);
+              if (message.success) {
+                resolve({ success: true });
+              } else {
+                reject(new Error(message.error || 'Recording failed'));
+              }
+              return;
             }
           };
 

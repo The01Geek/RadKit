@@ -28,11 +28,21 @@ RadKit is a browser extension built with the [WXT](https://wxt.dev/) framework, 
 
 ## Data Flow
 
+### Screenshot Flow
+
 1. **User initiates capture** — via the popup (click) or keyboard shortcut (`Alt+S` for visible, `Alt+D` for desktop).
 2. **Popup sends message** — `{ type: 'capture', mode: 'visible' | 'selection' | 'fullpage' | 'desktop' }` to the background script via `browser.runtime.sendMessage`.
 3. **Background script captures** — uses `chrome.tabs.captureVisibleTab` (visible/full-page), injects the content script for area selection, or opens a popup window with `getDisplayMedia` for screen/window capture.
-4. **Image stored** — the captured data URL is saved to `browser.storage.local` under the `capturedImage` key.
+4. **Image stored** — the captured data URL is saved to `browser.storage.local` under the `capturedImage` key (for the editor) and appended to a `screenshots` array (for history/management).
 5. **Editor opens** — a new tab is created at `/editor.html`, which reads the image from storage and renders it on a Konva stage.
+
+### Recording Flow
+
+1. **User initiates recording** — via the popup, which saves recording settings (`recordingSettings`) to storage.
+2. **Background opens record bar** — a small popup window is created at `record.html`, which serves as the recording control bar.
+3. **Recording auto-starts** — `record.js` begins capturing via `getDisplayMedia`, with optional webcam overlay via `webcam.html`.
+4. **User stops recording** — the recorded video is finalized and a preview page (`preview.html`) opens in a new tab.
+5. **Preview and save** — `preview.js` plays back the recording; the user can save (which stores the video in a `recordings` array in storage and triggers `chrome.downloads.download()`) or discard it.
 
 ## Key Technologies
 
@@ -51,6 +61,7 @@ Declared in `wxt.config.ts` → `manifest.permissions`:
 - `storage` — persist captured images and style presets
 - `scripting` — inject content scripts dynamically for selection and full-page capture
 - `unlimitedStorage` — support large full-page screenshots (data URLs can be 10+ MB)
+- `downloads` — save recordings to the user's downloads folder via `chrome.downloads.download()`
 
 
 Note: Screen/window capture uses `getDisplayMedia` in a popup extension window (`capture.html`), which requires no special permissions beyond the standard web API. The `desktopCapture` and `offscreen` permissions have been removed.
@@ -84,5 +95,14 @@ assets/
 public/
 ├── capture.html         # Popup window for screen/window capture (getDisplayMedia)
 ├── capture.js           # Capture logic for getDisplayMedia frame grab
+├── record.html          # Recording control bar popup
+├── record.js            # Recording logic (auto-start, pause, stop, webcam)
+├── preview.html         # Recording preview page
+├── preview.js           # Preview playback and save/discard
+├── recordings.html      # Recordings management page
+├── recordings.js        # List/download/delete recordings
+├── screenshots.html     # Screenshots management page
+├── screenshots.js       # List/download/delete screenshots
+├── webcam.html          # Circular webcam overlay window
 └── icon/                # Extension icons (16–128px)
 ```
