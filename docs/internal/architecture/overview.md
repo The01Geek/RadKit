@@ -104,5 +104,6 @@ public/
 ├── screenshots.html     # Screenshots management page
 ├── screenshots.js       # List/download/delete screenshots
 ├── webcam.html          # Circular webcam overlay window
+├── webcam.js            # Webcam stream initialization and error handling
 └── icon/                # Extension icons (16–128px)
 ```

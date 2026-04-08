@@ -21,6 +21,7 @@ The recording mode captures screen activity as a WebM video file (VP9/VP8 codec,
 | `public/recordings.html` | Recordings management page listing all stored recordings |
 | `public/recordings.js` | List, download, and delete stored recordings |
 | `public/webcam.html` | Circular webcam overlay popup window |
+| `public/webcam.js` | Webcam stream initialization, camera error handling |
 | `entrypoints/background.ts` | `captureRecording()` function, window lifecycle, preview tab opening |
 | `entrypoints/editor/Icons.tsx` | `IconRecord` component |
 
