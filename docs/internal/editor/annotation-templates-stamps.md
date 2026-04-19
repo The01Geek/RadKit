@@ -2,63 +2,96 @@
 
 ## Current Status
 
-**Not implemented.** Listed as a planned feature in `docs/plans/2026-04-06-feature-roadmap.md`.
+**Implemented.** Two stamp tools are available: **Step** (numbered circle) and **Callout** (titled box with body text).
 
-## Relevant Existing Infrastructure
+## Stamp Tools
 
-### Drawing Element Model
+### Step Stamp (`stamp-step`)
 
-All canvas annotations are represented as `DrawingElement` objects (`Editor.tsx:16–46`). Key fields for templates/stamps:
+A numbered circle overlay for marking sequential steps in a screenshot.
 
-- `type: Tool` — currently `'crop' | 'pencil' | 'line' | 'arrow' | 'rectangle' | 'circle' | 'text' | 'blur' | 'image'`
-- `imageSrc?: string` — used by the `image` tool to insert external images; could serve as the basis for stamp/overlay rendering
-- Style properties: `color`, `strokeWidth`, `opacity`, `filled`, `dash`, font settings, shadow settings
+- **Rendering**: Konva `Group` containing a filled `Circle` and a centered `Text` with the step number
+- **Auto-numbering**: When placed, the step number is automatically set to one higher than the highest existing step stamp on the canvas
+- **Default size**: 60×60 pixels
+- **Default color**: `#6366f1` (indigo)
+- **Default font size**: 30px
+- **Keyboard shortcut**: `s`
 
-### Style Presets System
+#### Sidebar Properties
 
-The editor already has a **Style Presets** system (`Editor.tsx:54–58`, `Editor.tsx:210–215`):
+| Property | Control | Description |
+|----------|---------|-------------|
+| Step Number | Number input (min 1) | The number displayed inside the circle |
+| Font Size | Range slider (8–100px) | Size of the number text |
+| Color | Color picker | Fill color of the circle |
+| Opacity | Range slider | Element transparency |
+
+### Callout Stamp (`stamp-callout`)
+
+A titled box with body text, useful for annotating areas with explanatory notes.
+
+- **Rendering**: Konva `Group` containing:
+  - A white `Rect` with colored border and 8px corner radius
+  - A tinted header `Rect` (color + `22` alpha)
+  - A 4px colored left accent bar
+  - A bold title `Text` in the header area
+  - A body `Text` below the header (75% of title font size)
+- **Default size**: 240×120 pixels
+- **Default color**: `#6366f1` (indigo)
+- **Default font size**: 24px (title), 18px (body, computed as `fontSize * 0.75`)
+- **Default title**: "Title"
+- **Default body**: "Body text here"
+- **Keyboard shortcut**: `k`
+
+#### Sidebar Properties
+
+| Property | Control | Description |
+|----------|---------|-------------|
+| Title | Text input | Header text displayed in bold |
+| Body Text | Textarea (3 rows) | Content text below the header |
+| Font Size | Range slider (8–100px) | Title font size (body scales proportionally) |
+| Border Width | Range slider (1–10px) | Stroke width of the outer border |
+| Color | Color picker | Border, accent bar, and header text color |
+| Opacity | Range slider | Element transparency |
+
+## DrawingElement Extensions
+
+Two new optional properties on `DrawingElement` support stamps:
 
 ```typescript
-interface Preset {
-    id: string;
-    name: string;
-    elements: DrawingElement[];
-}
+stampNumber?: number;    // Step stamp: the displayed number
+stampBodyText?: string;  // Callout stamp: the body text content
 ```
 
-- Presets save and restore tool-specific style configurations (color, stroke, opacity, etc.)
-- Stored in `chrome.storage.local` under the `stylePresets` key
-- Applied via a templates dropdown menu (`.templates-menu-wrapper` in CSS)
-- When a preset is active, switching tools applies the matching element style from that preset
+The `text` field (already on `DrawingElement`) is reused for the callout title.
 
-**Important distinction:** The existing preset system stores *style configurations*, not *pre-built visual elements*. Annotation templates/stamps would need to place actual elements (or groups of elements) onto the canvas.
+## Per-Tool Settings Persistence
 
-### Image Tool
+Both stamp tools participate in the existing `toolSettingsRef` system:
 
-The `image` tool (`Editor.tsx:124–151`, `ImageElement` component) allows inserting external images:
-- Uses a file picker to load images
-- Renders via Konva `Image` component
-- Stores the image data in `DrawingElement.imageSrc`
+| Tool | Persisted settings |
+|------|-------------------|
+| `stamp-step` | `color`, `strokeWidth`, `opacity`, `fontSize` (default 30) |
+| `stamp-callout` | `color`, `strokeWidth` (default 2), `opacity`, `fontSize` (default 24) |
 
-This tool provides the closest analog to how stamps (pre-built graphic overlays) could work — loading a bundled SVG/PNG and placing it as an image element.
+When switching to a stamp tool, `fontSize` is restored from `toolSettingsRef`.
 
-### Konva Canvas
+## Transform Behavior
 
-The editor renders via `react-konva` (`Stage` → `Layer` → shape components). Any new template/stamp elements would need corresponding Konva rendering logic.
+- **Step stamp**: Scales uniformly — `width`, `height`, and `fontSize` all scale by `Math.max(scaleX, scaleY)`
+- **Callout stamp**: `width` and `height` scale independently (allowing non-uniform resize); `fontSize` scales by the larger axis
 
 ## What Does Not Exist Yet
 
-1. **No template/stamp library** — no bundled assets for numbered steps, callout boxes, device frames, or watermarks
-2. **No compound element concept** — no way to group multiple `DrawingElement` objects into a single reusable unit
-3. **No stamp tool** — no tool mode for browsing and placing pre-built overlays
-4. **No device frame rendering** — no logic for wrapping the canvas in phone/laptop/browser frames
-5. **No watermark system** — no repeating overlay or positioned text/image watermark
-6. **No template gallery UI** — no browsable catalog of available templates
+1. **No device frame rendering** — no logic for wrapping the canvas in phone/laptop/browser frames
+2. **No watermark system** — no repeating overlay or positioned text/image watermark
+3. **No template gallery UI** — no browsable catalog of available templates
+4. **No compound element concept** — stamps are single `DrawingElement` objects rendered as Konva `Group`s, not multi-element groups
 
 ## Key Files
 
 | File | Relevance |
 |------|-----------|
-| `entrypoints/editor/Editor.tsx` | Core editor component (~1600 lines), tool system, element model, preset system |
-| `entrypoints/editor/editor.css` | Editor styles including `.templates-menu-wrapper` for presets dropdown |
-| `docs/plans/2026-04-06-feature-roadmap.md` | Feature roadmap listing this as a planned feature |
+| `entrypoints/editor/Editor.tsx` | Stamp tool logic, rendering, sidebar properties, transform handling |
+| `entrypoints/editor/Icons.tsx` | `IconStampStep` and `IconStampCallout` SVG icon components |
+| `entrypoints/editor/editor.css` | `.prop-textarea` and `input[type="number"]` styles for stamp property controls |

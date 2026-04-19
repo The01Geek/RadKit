@@ -63,6 +63,11 @@ Properties shown vary by element type:
 | Alignment | Text | Toggle buttons |
 | Shadow | Text | Checkbox + color/blur/offset controls |
 | Highlight | Text | Checkbox + color control |
+| Step Number | Step stamp | Number input (min 1) |
+| Title | Callout stamp | Text input |
+| Body Text | Callout stamp | Textarea (3 rows, `.prop-textarea` class) |
+| Font Size | Step stamp, Callout stamp | Range slider (8–100px) |
+| Border Width | Callout stamp | Range slider (1–10px) |
 
 ## State Synchronization
 

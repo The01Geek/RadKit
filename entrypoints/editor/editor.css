@@ -625,7 +625,36 @@ body {
   outline: none;
 }
 
-.prop-row input[type="text"]:focus {
+.prop-row input[type="text"]:focus,
+.prop-textarea:focus {
+  border-color: var(--brand-primary);
+}
+
+.prop-textarea {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-main);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--text-main);
+  font-size: 13px;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.prop-row input[type="number"] {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-main);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--text-main);
+  font-size: 13px;
+  outline: none;
+  width: 80px;
+}
+
+.prop-row input[type="number"]:focus {
   border-color: var(--brand-primary);
   box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.12);
 }
