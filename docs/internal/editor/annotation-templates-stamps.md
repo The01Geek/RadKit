@@ -2,63 +2,89 @@
 
 ## Current Status
 
-**Not implemented.** Listed as a planned feature in `docs/plans/2026-04-06-feature-roadmap.md`.
+**Implemented** (PR #40, issue #31). The stamp tool supports two stamp types: **numbered steps** and **callout boxes**.
 
-## Relevant Existing Infrastructure
+## Stamp Tool Architecture
 
-### Drawing Element Model
+### Tool Type & Data Model
 
-All canvas annotations are represented as `DrawingElement` objects (`Editor.tsx:16–46`). Key fields for templates/stamps:
+The `Tool` union type includes `'stamp'`. A separate `StampType` union (`'numbered-step' | 'callout'`) distinguishes stamp sub-types.
 
-- `type: Tool` — currently `'crop' | 'pencil' | 'line' | 'arrow' | 'rectangle' | 'circle' | 'text' | 'blur' | 'image'`
-- `imageSrc?: string` — used by the `image` tool to insert external images; could serve as the basis for stamp/overlay rendering
-- Style properties: `color`, `strokeWidth`, `opacity`, `filled`, `dash`, font settings, shadow settings
+The `DrawingElement` interface has four stamp-specific optional fields:
+
+- `stampType?: StampType` — which stamp variant this element represents
+- `stampNumber?: number` — auto-incrementing number for numbered-step stamps
+- `stampTitle?: string` — title text for callout box stamps
+- `stampBody?: string` — body text for callout box stamps
+
+### StampElement Component
+
+Stamps are rendered by the `StampElement` component (defined before the `Editor` function). It uses Konva `Group` as the root node, which receives `commonProps` (draggable, event handlers, position, opacity).
+
+**Numbered Step** — `Group` > `Circle` (filled with `el.color`) + `Text` (centered number, white, bold). Default size: 48×48px.
+
+**Callout Box** — `Group` > `Rect` (rounded rectangle with stroke) + `Rect` (colored left border, 6px wide) + `Text` (title, bold) + `Text` (body). Default size: 220×90px.
+
+### Stamp Placement
+
+Stamps are placed via single click on an empty canvas area (same pattern as the text tool). The `handleStageMouseDown` function has a `tool === 'stamp'` branch that:
+
+1. Filters existing elements for numbered-step stamps and computes `max(stampNumber) + 1`
+2. Creates a new `DrawingElement` with stamp-specific fields
+3. Centers the stamp on the click position
+4. Adds to history and selects the new element
+
+### Stamp Picker UI
+
+The stamp toolbar button wraps in a `.stamp-menu-wrapper` div with a dropdown picker. The picker shows two options with visual previews:
+
+- **Numbered Step** — circular preview with "1"
+- **Callout Box** — rectangle preview with colored left border
+
+The picker closes on click-outside via a `mousedown` event listener.
+
+### Properties Panel
+
+When a stamp element is selected in the sidebar:
+
+- **Numbered Step**: displays a number input to edit the step number
+- **Callout Box**: displays title (text input) and body (textarea) fields
+- Both types show color and opacity controls (inherited from the generic element properties)
+
+### Settings Persistence
+
+Stamp tool settings (color, opacity) persist in `toolSettingsRef` when switching between tools, matching the behavior of other tool types.
+
+### Keyboard Shortcut
+
+The stamp tool is activated with the `S` key, which also opens the stamp picker.
+
+## Existing Infrastructure
 
 ### Style Presets System
 
-The editor already has a **Style Presets** system (`Editor.tsx:54–58`, `Editor.tsx:210–215`):
+The editor has a **Style Presets** system (`Preset` interface) that saves and restores complete element configurations. Stamp elements are included when saving presets since all `DrawingElement` fields (including stamp-specific ones) are spread into the preset data.
 
-```typescript
-interface Preset {
-    id: string;
-    name: string;
-    elements: DrawingElement[];
-}
-```
+### Undo/Redo
 
-- Presets save and restore tool-specific style configurations (color, stroke, opacity, etc.)
-- Stored in `chrome.storage.local` under the `stylePresets` key
-- Applied via a templates dropdown menu (`.templates-menu-wrapper` in CSS)
-- When a preset is active, switching tools applies the matching element style from that preset
+Stamp placement, editing, and deletion are tracked in the history system. The `addToHistory` function stores the full elements array, so stamp-specific fields survive undo/redo operations.
 
-**Important distinction:** The existing preset system stores *style configurations*, not *pre-built visual elements*. Annotation templates/stamps would need to place actual elements (or groups of elements) onto the canvas.
+### Export
 
-### Image Tool
-
-The `image` tool (`Editor.tsx:124–151`, `ImageElement` component) allows inserting external images:
-- Uses a file picker to load images
-- Renders via Konva `Image` component
-- Stores the image data in `DrawingElement.imageSrc`
-
-This tool provides the closest analog to how stamps (pre-built graphic overlays) could work — loading a bundled SVG/PNG and placing it as an image element.
-
-### Konva Canvas
-
-The editor renders via `react-konva` (`Stage` → `Layer` → shape components). Any new template/stamp elements would need corresponding Konva rendering logic.
+Stamps export correctly via Konva's `toDataURL()` and `toBlob()` since Group nodes with their children (Circle, Rect, Text) are natively rasterized.
 
 ## What Does Not Exist Yet
 
-1. **No template/stamp library** — no bundled assets for numbered steps, callout boxes, device frames, or watermarks
-2. **No compound element concept** — no way to group multiple `DrawingElement` objects into a single reusable unit
-3. **No stamp tool** — no tool mode for browsing and placing pre-built overlays
-4. **No device frame rendering** — no logic for wrapping the canvas in phone/laptop/browser frames
-5. **No watermark system** — no repeating overlay or positioned text/image watermark
-6. **No template gallery UI** — no browsable catalog of available templates
+1. **Device frames** (phone/tablet/laptop mockups)
+2. **Watermarks**
+3. **Custom/user-uploaded stamp images**
+4. **Template marketplace or sharing**
+5. **Integration with Style Presets** for stamp-specific preset configurations
 
 ## Key Files
 
 | File | Relevance |
 |------|-----------|
-| `entrypoints/editor/Editor.tsx` | Core editor component (~1600 lines), tool system, element model, preset system |
-| `entrypoints/editor/editor.css` | Editor styles including `.templates-menu-wrapper` for presets dropdown |
-| `docs/plans/2026-04-06-feature-roadmap.md` | Feature roadmap listing this as a planned feature |
+| `entrypoints/editor/Editor.tsx` | Core editor: Tool type, DrawingElement, StampElement component, stamp placement logic, properties panel |
+| `entrypoints/editor/Icons.tsx` | IconStamp SVG icon |
+| `entrypoints/editor/editor.css` | Stamp picker dropdown styles (`.stamp-picker`, `.stamp-option`) |
