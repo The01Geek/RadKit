@@ -20,13 +20,8 @@ The toolbar color picker is an HTML5 `<input type="color">` inside `.color-tool`
 
 1. `setColor(newValue)` updates the global toolbar color state
 2. `setActivePresetId(null)` clears any active style preset
-3. The new color is used for **future** element creation only
-
-**Current limitation:** Changing the toolbar color does NOT update the currently selected element. It only affects elements created afterwards.
-
-### Preset Color Buttons
-
-Below the color picker, preset color swatches are available. Clicking a preset calls the same `setColor()` flow.
+3. If an element is selected (`selectedId` is set) and its type supports color (not `blur` or `image`), `updateElementProperty(selectedId, { color: newColor })` is called to update the selected element immediately
+4. The new color is also used for **future** element creation
 
 ## Right Sidebar Properties Panel
 
@@ -76,15 +71,15 @@ When a property is changed via the **properties panel**:
 - The element is updated
 - The toolbar state is synced to match
 
-When a property is changed via the **toolbar**:
-- Only the toolbar state variable is updated
-- The selected element is **NOT** updated (this is the current gap)
+When a property is changed via the **toolbar color picker**:
+- The toolbar state variable is updated
+- If an element is selected (and supports color), the element is also updated via `updateElementProperty()`
 
 ### Visual flow
 
 ```
-Toolbar color change  -->  setColor()  -->  affects FUTURE elements only
-                                            (selected element NOT updated)
+Toolbar color change  -->  setColor()  -->  affects FUTURE elements
+                      -->  updateElementProperty()  -->  updates selected element (if any)
 
 Properties panel change  -->  updateElementProperty()  -->  updates element
                                                         -->  syncs toolbar state
